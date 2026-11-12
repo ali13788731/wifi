@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -52,3 +55,14 @@ jobs:
         with:
           name: test-reports
           path: app/build/reports/**
+
+      - name: Publish debug APK as a pre-release (easy phone download)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk DualNet-debug.apk
+          gh release create "dualnet-build-${{ github.run_number }}" DualNet-debug.apk \
+            --prerelease --target "${{ github.sha }}" \
+            --title "DualNet debug build #${{ github.run_number }}" \
+            --notes "Debug APK built from ${{ github.sha }}. Not yet tested on a real device."
