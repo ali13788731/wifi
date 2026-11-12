@@ -12,16 +12,17 @@ class SpeedMeter {
     fun add(n: Long) { total.addAndGet(n) }
     val bytes: Long get() = total.get()
 
-    /** Call about once per second; returns smoothed bytes/second. */
+    /**
+     * Call about once per second. Returns the REAL byte rate of the last interval, with no
+     * smoothing, so when a network stops delivering bytes the number falls to 0 right away.
+     */
     @Synchronized
     fun sample(): Long {
         val now = System.nanoTime()
         val cur = total.get()
         val dt = (now - lastNanos) / 1e9
-        if (dt > 0.2) {
-            val inst = (cur - lastBytes) / dt
-            speed = if (speed == 0.0) inst else speed * 0.4 + inst * 0.6
-            if (inst == 0.0 && speed < 1024) speed = 0.0
+        if (dt >= 0.4) {
+            speed = (cur - lastBytes) / dt
             lastBytes = cur
             lastNanos = now
         }

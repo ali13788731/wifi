@@ -147,4 +147,86 @@
     <string name="s_reset_folder">Use default</string>
     <string name="s_overwrite">Overwrite files with the same name</string>
     <string name="s_about">About</string>
+
+    <!-- v2.1 additions -->
+    <string name="splash_tagline">Download through Wi-Fi and mobile data at once</string>
+    <string name="designed_by">Designed by Mr.PC</string>
+    <string name="nav_stats">Usage</string>
+    <string name="minutes">min</string>
+    <string name="hours">h</string>
+    <string name="net_off">Off / disconnected</string>
+    <string name="home_share_now">Right now: Wi-Fi %1$d%% • Mobile %2$d%%</string>
+    <string name="home_how">Each file is split into small parts. Both networks download different parts at the same time and the app merges them, so the speeds add up.</string>
+    <string name="home_session_bytes">%1$s downloaded</string>
+    <string name="notif_idle">DualNet — no active download</string>
+    <string name="notif_n_downloads">%1$d downloads</string>
+    <string name="notif_done_split">Wi-Fi %1$s (%2$d%%) • Mobile %3$s (%4$d%%)</string>
+
+    <!-- precise errors -->
+    <string name="err_no_wifi">Wi-Fi is off or not connected. Connect to Wi-Fi to download.</string>
+    <string name="err_no_mobile">Mobile data is off. Turn on mobile data to download.</string>
+    <string name="err_no_both">Wi-Fi and mobile data are both off. Turn both on to download.</string>
+    <string name="err_auth">This link needs a username and password (the server answered 401).</string>
+    <string name="err_unreachable">Cannot reach the server. Check the link and that the internet works.</string>
+    <string name="err_range_unsupported">This site does not support downloading from two networks at once (no HTTP Range), so it cannot be downloaded in this app.</string>
+    <string name="err_range_invalid">The server\'s partial-download answer is invalid, so a safe dual-network download is not possible for this link.</string>
+    <string name="err_http">The server returned an error (HTTP %1$s).</string>
+    <string name="err_http_404">File not found on the server (HTTP 404). The link may have expired.</string>
+    <string name="err_http_403">The server denied access (HTTP 403). The link may need cookies, a Referer, or a login.</string>
+    <string name="err_file_changed">The file changed on the server while downloading. Start the download again.</string>
+    <string name="err_verify">The downloaded file failed verification (size or parts do not match).</string>
+    <string name="err_save">The file was downloaded but could not be saved. Check free storage space and folder access.</string>
+    <string name="err_segment">A part of the file kept failing. Check your connection and retry.</string>
+    <string name="err_mobile_limit">Your monthly mobile-data limit is reached.</string>
+    <string name="err_unknown">Unexpected error. Try again.</string>
+
+    <!-- live notices -->
+    <string name="notice_wifi_lost">Wi-Fi disconnected — continuing with mobile data. It joins again when Wi-Fi returns.</string>
+    <string name="notice_mobile_lost">Mobile data disconnected — continuing with Wi-Fi. It joins again when mobile data returns.</string>
+    <string name="notice_waiting_both">Wi-Fi and mobile data are both off — waiting for connection…</string>
+    <string name="notice_waiting_wifi">Waiting for Wi-Fi…</string>
+    <string name="notice_waiting_mobile">Waiting for mobile data…</string>
+    <string name="notice_checking">Checking the link…</string>
+    <string name="notice_mobile_limit">Mobile limit reached — using Wi-Fi only</string>
+
+    <!-- history filters -->
+    <string name="search_hint">Search name or link</string>
+    <string name="filters">Filters</string>
+    <string name="f_status">Status</string>
+    <string name="f_period">Period</string>
+    <string name="f_size">File size</string>
+    <string name="f_network">Mostly downloaded via</string>
+    <string name="f_sort">Sort by</string>
+    <string name="f_reset">Reset filters</string>
+    <string name="f_summary">%1$d files • Wi-Fi %2$s • Mobile %3$s</string>
+    <string name="r_today">Today</string>
+    <string name="r_week">7 days</string>
+    <string name="r_month">30 days</string>
+    <string name="r_year">1 year</string>
+    <string name="sz_small">&lt; 10 MB</string>
+    <string name="sz_medium">10–100 MB</string>
+    <string name="sz_large">100 MB–1 GB</string>
+    <string name="sz_huge">&gt; 1 GB</string>
+    <string name="nb_wifi">Wi-Fi</string>
+    <string name="nb_mobile">Mobile data</string>
+    <string name="so_newest">Newest</string>
+    <string name="so_oldest">Oldest</string>
+    <string name="so_largest">Largest</string>
+    <string name="so_smallest">Smallest</string>
+    <string name="so_name">Name</string>
+
+    <!-- usage statistics -->
+    <string name="stats_title">Data usage</string>
+    <string name="stats_total">Total downloaded</string>
+    <string name="stats_biggest">Biggest file</string>
+    <string name="stats_daily">Per day (Wi-Fi / Mobile)</string>
+    <string name="stats_empty">No completed downloads in this period.</string>
+
+    <!-- settings groups -->
+    <string name="s_connections_hint">More connections can be faster, but some servers limit them.</string>
+    <string name="s_mobile_section">Mobile data</string>
+    <string name="s_mobile_hint">Every download uses both networks. Set a monthly cap so mobile data stops being used when it is reached (Wi-Fi keeps working).</string>
+    <string name="s_notifications">Notification and status bar</string>
+    <string name="s_links">Links</string>
+    <string name="s_clipboard_hint">When you open the app after copying a link, the new-download window opens by itself. Android does not allow reading the clipboard while the app is closed.</string>
 </resources>

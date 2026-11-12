@@ -22,7 +22,7 @@ data class Settings(
     val connectionsPerNetwork: Int = 3,
     val speedLimitBps: Long = 0,                 // 0 = unlimited
     val mobileLimitBytes: Long = 0,              // monthly mobile-data cap, 0 = unlimited
-    val mobileWarning: Boolean = true,
+    val mobileWarning: Boolean = false,
     val autoRetry: Boolean = true,
     val theme: String = "system",                // system / light / dark
     val language: String = "system",             // system / fa / en

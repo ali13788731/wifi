@@ -65,7 +65,8 @@ object RangeProbe {
         try {
             client.newCall(req).execute().use { r ->
                 if (r.code == 401 || r.code == 407) return authNeeded(finalUrl)
-                if (r.code == 416) return fail(finalUrl, "Server answered HTTP 416 to a valid range.")
+                if (r.code == 416) return fail(finalUrl, "Server answered HTTP 416 to a valid range.", "HTTP_416")
+                if (r.code >= 400) return fail(finalUrl, "HTTP ${r.code}", "HTTP_${r.code}")
                 if (r.code != 206) {
                     val total = r.header("Content-Length")?.toLongOrNull() ?: length
                     return ProbeResult(
@@ -73,7 +74,8 @@ object RangeProbe {
                         name ?: fileNameOf(r), mime ?: r.header("Content-Type")?.substringBefore(';'),
                         etag ?: r.header("ETag"), lastMod ?: r.header("Last-Modified"), false,
                         "Server does not support HTTP Range (answered ${r.code}). " +
-                            "Dual-network and multi-part are disabled; a normal single download is used."
+                            "Dual-network downloading is impossible for this link.",
+                        "RANGE_UNSUPPORTED"
                     )
                 }
                 val cr = r.header("Content-Range")
@@ -121,15 +123,16 @@ object RangeProbe {
     private fun unverified(
         url: String, len: Long, name: String?, mime: String?, etag: String?, lm: String?, why: String
     ) = ProbeResult(url, len, false, name, mime, etag, lm, false,
-        "$why Dual-network is disabled for this file; a normal single download is used.")
+        "$why Dual-network downloading is impossible for this link.", "RANGE_INVALID")
 
     private fun authNeeded(url: String) = ProbeResult(
         url, -1, false, null, null, null, null, true,
-        "The server requires authentication (HTTP 401/407). Enter a username and password."
+        "The server requires authentication (HTTP 401/407). Enter a username and password.",
+        "AUTH"
     )
 
-    private fun fail(url: String, msg: String) =
-        ProbeResult(url, -1, false, null, null, null, null, false, msg)
+    private fun fail(url: String, msg: String, code: String = "UNREACHABLE") =
+        ProbeResult(url, -1, false, null, null, null, null, false, msg, code)
 
     /** Content-Disposition filename, falling back to the last URL path segment. */
     fun fileNameOf(r: Response): String? {
