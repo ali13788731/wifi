@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DualNet</string>
+    <string name="ch_speed">Speed &amp; downloads</string>
+    <string name="ch_done">Finished downloads</string>
+    <string name="notif_total">Total: %1$s</string>
+    <string name="notif_split">Wi-Fi: %1$s  |  Mobile: %2$s</string>
+    <string name="notif_active">%1$d active</string>
+    <string name="pause_all">Pause all</string>
+    <string name="resume_all">Resume all</string>
+    <string name="cancel_all">Cancel all</string>
+    <string name="notif_done">Download complete</string>
+    <string name="notif_failed">Download failed</string>
+
+    <!-- navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_downloads">Downloads</string>
+    <string name="nav_diagnostics">Network</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- dashboard -->
+    <string name="total_speed">Total speed</string>
+    <string name="active">Active</string>
+    <string name="completed">Completed</string>
+    <string name="pending">Pending</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="mobile">Mobile data</string>
+    <string name="dual_network">Dual network</string>
+    <string name="dual_ready">Both networks ready — downloads use both at once</string>
+    <string name="dual_not_ready">Dual mode needs Wi-Fi and mobile data both on</string>
+    <string name="dual_help">Android cannot turn mobile data on for an app. Enable it in system settings and keep Wi-Fi connected.</string>
+    <string name="open_net_settings">Open network settings</string>
+    <string name="no_downloads">No downloads yet</string>
+    <string name="no_downloads_hint">Tap + and paste a link to start a dual-network download.</string>
+
+    <!-- add dialog -->
+    <string name="add_download">New download</string>
+    <string name="url">Link (URL)</string>
+    <string name="paste_clipboard">Link found in clipboard — use it</string>
+    <string name="advanced">Advanced options</string>
+    <string name="user_agent">User-Agent</string>
+    <string name="referer">Referer</string>
+    <string name="cookies">Cookies</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="check_link">Check link</string>
+    <string name="checking">Checking…</string>
+    <string name="file_name">File name</string>
+    <string name="file_size">Size</string>
+    <string name="range_ok">Range verified — dual-network download available</string>
+    <string name="range_no">No verified Range support — normal single download</string>
+    <string name="network_mode">Network mode</string>
+    <string name="mode_dual">Wi-Fi + Mobile</string>
+    <string name="mode_wifi">Wi-Fi only</string>
+    <string name="mode_mobile">Mobile only</string>
+    <string name="mode_auto">Wi-Fi first</string>
+    <string name="start_now">Start now</string>
+    <string name="schedule">Schedule</string>
+    <string name="cancel">Cancel</string>
+    <string name="mobile_warning_title">Mobile data will be used</string>
+    <string name="mobile_warning_body">This download may use your mobile data plan (about %1$s). Continue?</string>
+    <string name="continue_">Continue</string>
+    <string name="invalid_url">Enter a valid http:// or https:// link</string>
+
+    <!-- download card -->
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="retry">Retry</string>
+    <string name="open">Open</string>
+    <string name="share">Share</string>
+    <string name="delete">Delete</string>
+    <string name="remove_from_list">Remove from list</string>
+    <string name="delete_file">Delete file too</string>
+    <string name="remaining">Remaining</string>
+    <string name="eta">ETA</string>
+    <string name="status_queued">Queued</string>
+    <string name="status_probing">Checking…</string>
+    <string name="status_running">Downloading</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_verifying">Verifying</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_canceled">Canceled</string>
+    <string name="pause_all_btn">Pause all</string>
+    <string name="resume_all_btn">Resume all</string>
+    <string name="clear_finished">Clear finished</string>
+
+    <!-- diagnostics -->
+    <string name="diag_title">Network diagnostics</string>
+    <string name="diag_available">Available</string>
+    <string name="diag_connected">Connected</string>
+    <string name="diag_validated">Internet validated</string>
+    <string name="diag_transferring">Transferring download data</string>
+    <string name="diag_speed">Speed</string>
+    <string name="diag_bytes">Bytes transferred</string>
+    <string name="diag_connections">Active connections</string>
+    <string name="diag_segments">Segments</string>
+    <string name="diag_ssid">Network name</string>
+    <string name="diag_total_bytes">Total downloaded</string>
+    <string name="diag_utilization">Share of traffic</string>
+    <string name="diag_duration">Duration</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+
+    <!-- history -->
+    <string name="history_title">History</string>
+    <string name="by_category">By category</string>
+    <string name="cat_video">Video</string>
+    <string name="cat_audio">Audio</string>
+    <string name="cat_image">Images</string>
+    <string name="cat_archive">Archives</string>
+    <string name="cat_app">Apps</string>
+    <string name="cat_document">Documents</string>
+    <string name="cat_other">Other</string>
+    <string name="all">All</string>
+    <string name="file_missing">File no longer exists</string>
+
+    <!-- settings -->
+    <string name="settings_title">Settings</string>
+    <string name="s_downloads">Downloads</string>
+    <string name="s_network">Network</string>
+    <string name="s_appearance">Appearance</string>
+    <string name="s_storage">Storage</string>
+    <string name="s_default_mode">Default network mode</string>
+    <string name="s_max_concurrent">Simultaneous downloads</string>
+    <string name="s_connections">Connections per network</string>
+    <string name="s_speed_limit">Speed limit (MB/s, 0 = none)</string>
+    <string name="s_mobile_limit">Monthly mobile-data limit (MB, 0 = none)</string>
+    <string name="s_mobile_used">Mobile data used this month</string>
+    <string name="s_mobile_warning">Warn before using mobile data</string>
+    <string name="s_auto_retry">Automatic retry</string>
+    <string name="s_statusbar">Show speed in status bar</string>
+    <string name="s_statusbar_hint">If the number is missing, enable "show silent notification icons in status bar" in your phone\'s notification settings.</string>
+    <string name="s_clipboard">Detect links in clipboard</string>
+    <string name="s_theme">Theme</string>
+    <string name="s_language">Language</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="lang_system">System</string>
+    <string name="lang_fa">فارسی</string>
+    <string name="lang_en">English</string>
+    <string name="s_folder">Download folder</string>
+    <string name="s_folder_default">App downloads folder</string>
+    <string name="s_choose_folder">Choose folder</string>
+    <string name="s_reset_folder">Use default</string>
+    <string name="s_overwrite">Overwrite files with the same name</string>
+    <string name="s_about">About</string>
+</resources>

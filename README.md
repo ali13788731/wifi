@@ -1,9 +1,38 @@
-# NetSpeed
+# DualNet — Wi-Fi + Mobile Data Download Manager (Android)
 
-Android app that shows download speed of Wi-Fi and mobile data (in MB/s) plus their sum in a notification. The total is also drawn in the status-bar icon so it is visible without pulling down the shade.
+Downloads **one file through Wi-Fi and mobile data at the same time** and merges the pieces into one verified file. Also shows live speed in the notification and as a number in the status-bar icon.
 
-- On first launch it checks (once) that the phone can keep Wi-Fi and mobile data up at the same time.
-- A switch turns the monitor on/off; it only turns on while both Wi-Fi and mobile data are on.
-- Android does not allow apps to toggle Wi-Fi / mobile data themselves, so a button opens the system network panel instead.
+## How dual-network works (real, no simulation)
+1. `NetworkManager` asks Android for the Wi-Fi and the cellular `Network` (`requestNetwork`) and tracks *available / connected / internet-validated*.
+2. `NetworkBindingManager` builds one OkHttp client per `Network`: `network.socketFactory` + `network.getAllByName` for DNS, its own connection pool, HTTP/1.1 only — so Wi-Fi sockets can never leak onto mobile and vice-versa.
+3. `RangeProbe` never trusts `Accept-Ranges`: HEAD, then a real `Range: bytes=0-1023` request that must return **206**, a matching `Content-Range` and exactly the right byte count. Otherwise dual mode is disabled for that file and a normal single download is used.
+4. The file is split into small segments kept in a shared queue. Every connection of every network pulls the next segment, so the faster network automatically takes more (throughput-proportional, dynamic). Failed segments go back to the queue and the other network finishes them. A lost network stops receiving segments.
+5. Bytes are written with positional `FileChannel` writes to non-overlapping ranges of a pre-allocated temp file. Segments (start/end, bytes, network, times, retries, validated) are stored in Room so downloads **resume after app restart**.
+6. Before a file is marked complete: all segments done+validated, contiguous, sizes add up, file length equals `Content-Length`. Only then it is moved to your SAF folder / app folder.
 
-Open the folder in Android Studio, build, and install.
+## Android limits (cannot be bypassed)
+- An app **cannot turn mobile data on**. The user enables it; the app detects it and offers a shortcut to the system panel.
+- Some phones keep the cellular radio idle while Wi-Fi is on; `requestNetwork` asks Android to bring it up, but the OEM decides. The Network screen shows what actually happened.
+- Status-bar speed icon: some phones hide *silent* notification icons — enable "show silent notification icons" in system notification settings.
+- Foreground service type is `dataSync` (Android 15 limits it to ~6 h per run; downloads restart from saved segments).
+
+## Features
+Queue, priorities, max concurrent downloads, connections per network, speed limiter, monthly mobile-data limit + warning, Wi-Fi-only / mobile-only / Wi-Fi-first / dual modes, scheduled start, automatic retry, resume, pause/cancel, custom User-Agent / Referer / Cookies / Basic auth, redirects, Content-Disposition names, smart categories, history, open/share/delete, SAF folder, duplicate handling, diagnostics screen, dark/light, Persian (RTL) and English.
+
+## Build
+```
+gradle assembleDebug          # app/build/outputs/apk/debug
+gradle testDebugUnitTest      # HTTP 200/206/401/416, redirects, headers, segment verification, limiter
+```
+Release: set `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` then `gradle assembleRelease` (R8 enabled).
+CI (`.github/workflows/build-apk.yml`) runs the unit tests and uploads both APKs.
+
+## Dual-network acceptance test (needs a real phone)
+Wi-Fi connected + mobile data on, a Range-capable server with a ≥100 MB file:
+```
+gradle connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.url=https://host/100MB.bin
+```
+It asserts: both byte counters increase, both transfer simultaneously, final size matches, counters sum to the file size. It is skipped (not passed) if both networks are not available.
+
+## Before publishing on a store
+Change `applicationId` (currently `com.example.netspeed`), add your own keystore, privacy policy, and test on several vendors.
