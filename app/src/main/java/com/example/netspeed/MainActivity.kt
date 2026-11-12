@@ -1,240 +1,173 @@
 package com.example.netspeed
 
 import android.Manifest
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import android.view.Gravity
-import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.Switch
-import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.NetworkCheck
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.content.PermissionChecker
+import com.example.netspeed.core.ui.AppViewModel
+import com.example.netspeed.core.ui.DualNetTheme
+import com.example.netspeed.feature.diagnostics.DiagnosticsScreen
+import com.example.netspeed.feature.downloads.AddDownloadSheet
+import com.example.netspeed.feature.downloads.DownloadsScreen
+import com.example.netspeed.feature.history.HistoryScreen
+import com.example.netspeed.feature.home.HomeScreen
+import com.example.netspeed.feature.settings.SettingsScreen
+import com.example.netspeed.service.DownloadService
+import dagger.hilt.android.AndroidEntryPoint
+import java.util.Locale
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private lateinit var status: TextView
-    private lateinit var toggle: Switch
-    private lateinit var retestBtn: Button
-    private lateinit var settingsBtn: Button
+    private val vm: AppViewModel by viewModels()
+    private var incomingUrl by mutableStateOf<String?>(null)
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val callbacks = mutableListOf<ConnectivityManager.NetworkCallback>()
-    private val prefs by lazy { getSharedPreferences("netspeed", MODE_PRIVATE) }
-
-    private var testing = false
-
-    private val notifPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) tryEnable() else {
-            setSwitch(false)
-            showStatus("برای نمایش نوتیفیکیشن باید اجازه‌ی اعلان بدهید.", Color.parseColor("#C62828"))
-        }
-    }
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(wrapLocale(base))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        status = TextView(this).apply {
-            textSize = 18f
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 48)
-        }
-        toggle = Switch(this).apply {
-            text = "نمایش سرعت در نوتیفیکیشن"
-            textSize = 18f
-            setOnClickListener { onToggleClicked() }
-        }
-        retestBtn = Button(this).apply {
-            text = "تست مجدد"
-            setOnClickListener { runSupportTest() }
-        }
-        settingsBtn = Button(this).apply {
-            text = "باز کردن تنظیمات وای‌فای / دیتای موبایل"
-            setOnClickListener { openNetworkSettings() }
-        }
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(48, 48, 48, 48)
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
-            addView(status)
-            addView(toggle)
-            addView(retestBtn)
-            addView(settingsBtn)
-        }
-        setContentView(root)
-        refreshUi()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // تست پشتیبانی فقط تا وقتی که یک بار موفق نشده انجام می‌شود
-        if (!isSupported() && !testing) runSupportTest()
-    }
-
-    private fun isSupported() = prefs.getBoolean("supported", false)
-    private fun isRunning() = prefs.getBoolean("running", false)
-
-    // ---------- UI ----------
-
-    private fun showStatus(text: String, color: Int = Color.DKGRAY) {
-        status.text = text
-        status.setTextColor(color)
-    }
-
-    private fun setSwitch(on: Boolean) {
-        toggle.isChecked = on
-        prefs.edit().putBoolean("running", on).apply()
-    }
-
-    private fun refreshUi() {
-        val supported = isSupported()
-        toggle.isEnabled = supported && !testing
-        toggle.isChecked = supported && isRunning()
-        retestBtn.visibility = if (supported) View.GONE else View.VISIBLE
-        retestBtn.isEnabled = !testing
-        settingsBtn.visibility = if (supported) View.GONE else View.VISIBLE
-
-        if (testing) return
-        if (supported) {
-            if (isRunning()) showStatus("✅ فعال است. سرعت در نوتیفیکیشن نمایش داده می‌شود.", Color.parseColor("#2E7D32"))
-            else showStatus("✅ گوشی شما پشتیبانی می‌کند.\nبرای شروع، سوییچ را روشن کنید.", Color.parseColor("#2E7D32"))
-        } else {
-            showStatus(
-                "❌ هنوز پشتیبانی تأیید نشده.\n\n" +
-                    "برای تست، هم‌زمان باید وای‌فای وصل و دیتای موبایل روشن باشد. " +
-                    "تا وقتی تأیید نشود، نمی‌توانید برنامه را روشن کنید.",
-                Color.parseColor("#C62828")
-            )
-        }
-    }
-
-    private fun openNetworkSettings() {
-        val intent = if (Build.VERSION.SDK_INT >= 29)
-            Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
-        else
-            Intent(Settings.ACTION_WIRELESS_SETTINGS)
-        startActivity(intent)
-    }
-
-    // ---------- تست پشتیبانی (فقط یک بار) ----------
-
-    private fun runSupportTest() {
-        testing = true
-        showStatus("در حال بررسی پشتیبانی...")
-        refreshUi()
-        checkBothUp(4000) { ok ->
-            testing = false
-            if (ok) prefs.edit().putBoolean("supported", true).apply()
-            refreshUi()
-        }
-    }
-
-    // ---------- روشن / خاموش ----------
-
-    private fun onToggleClicked() {
-        if (toggle.isChecked) {
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                tryEnable()
-            }
-        } else {
-            stopService(Intent(this, SpeedService::class.java))
-            setSwitch(false)
-            refreshUi()
-        }
-    }
-
-    private fun tryEnable() {
-        testing = true
-        toggle.isEnabled = false
-        showStatus("در حال بررسی وای‌فای و دیتای موبایل...")
-        checkBothUp(2500) { ok ->
-            testing = false
-            if (ok) {
-                ContextCompat.startForegroundService(this, Intent(this, SpeedService::class.java))
-                setSwitch(true)
-                refreshUi()
-            } else {
-                setSwitch(false)
-                refreshUi()
-                settingsBtn.visibility = View.VISIBLE
-                showStatus(
-                    "روشن نشد: وای‌فای و دیتای موبایل باید هر دو روشن باشند.\n\n" +
-                        "اندروید اجازه نمی‌دهد برنامه‌ها خودشان آن‌ها را روشن کنند؛ " +
-                        "از دکمه‌ی زیر آن‌ها را روشن کنید و دوباره امتحان کنید.",
-                    Color.parseColor("#C62828")
-                )
+        enableEdgeToEdge()
+        handleIntent(intent)
+        setContent {
+            val settings by vm.settings.collectAsState()
+            DualNetTheme(settings.theme) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    AppRoot()
+                }
             }
         }
     }
 
-    // ---------- بررسی هم‌زمان بودن وای‌فای و موبایل ----------
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
 
-    private fun checkBothUp(timeoutMs: Long, onResult: (Boolean) -> Unit) {
-        val cm = getSystemService(ConnectivityManager::class.java)
-        var wifiUp = false
-        var cellUp = false
+    /** A link shared/opened from another app only pre-fills the sheet; the user must confirm. */
+    private fun handleIntent(i: Intent?) {
+        incomingUrl = when (i?.action) {
+            Intent.ACTION_SEND -> i.getStringExtra(Intent.EXTRA_TEXT)?.trim()
+            Intent.ACTION_VIEW -> i.dataString
+            else -> null
+        }?.takeIf { it.startsWith("http", true) }
+    }
 
-        val wifiCb = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { wifiUp = true }
+    private fun clipboardUrl(): String? {
+        if (!vm.settings.value.clipboardDetect) return null
+        val cm = getSystemService(ClipboardManager::class.java)
+        val t = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()?.trim()
+        return t?.takeIf { (it.startsWith("http://", true) || it.startsWith("https://", true)) && !it.contains(' ') }
+    }
+
+    private fun startSpeedService() {
+        val ok = Build.VERSION.SDK_INT < 33 ||
+            PermissionChecker.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PermissionChecker.PERMISSION_GRANTED
+        if (ok && vm.settings.value.statusBarSpeed) {
+            ContextCompat.startForegroundService(this, Intent(this, DownloadService::class.java))
         }
-        val cellCb = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { cellUp = true }
-        }
+    }
 
-        fun request(transport: Int, cb: ConnectivityManager.NetworkCallback) {
-            val req = NetworkRequest.Builder()
-                .addTransportType(transport)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-            try {
-                cm.requestNetwork(req, cb)
-                callbacks.add(cb)
-            } catch (_: Exception) {
+    @androidx.compose.runtime.Composable
+    private fun AppRoot() {
+        var tab by rememberSaveable { mutableIntStateOf(0) }
+        var showAdd by rememberSaveable { mutableStateOf(false) }
+        var prefill by androidx.compose.runtime.remember { mutableStateOf<String?>(null) }
+
+        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+            startSpeedService()
+        }
+        LaunchedEffect(Unit) {
+            if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else startSpeedService()
+            vm.manager.restore()
+        }
+        LaunchedEffect(incomingUrl) { if (incomingUrl != null) { prefill = incomingUrl; showAdd = true; incomingUrl = null } }
+
+        val openAdd = { prefill = clipboardUrl(); showAdd = true }
+        val open: (String) -> Unit = { p ->
+            runCatching { startActivity(vm.storage.openIntent(p)) }
+        }
+        val share: (String) -> Unit = { p -> runCatching { startActivity(vm.storage.shareIntent(p)) } }
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NavigationBar {
+                    listOf(
+                        Icons.Rounded.Home to R.string.nav_home, Icons.Rounded.Download to R.string.nav_downloads,
+                        Icons.Rounded.NetworkCheck to R.string.nav_diagnostics, Icons.Rounded.History to R.string.nav_history,
+                        Icons.Rounded.Settings to R.string.nav_settings
+                    ).forEachIndexed { i, (icon, label) ->
+                        NavigationBarItem(
+                            selected = tab == i, onClick = { tab = i },
+                            icon = { Icon(icon, null) }, label = { Text(stringResource(label), maxLines = 1) }
+                        )
+                    }
+                }
+            }
+        ) { pad ->
+            androidx.compose.foundation.layout.Box(Modifier.padding(pad)) {
+                when (tab) {
+                    0 -> HomeScreen(vm, openAdd, open, share)
+                    1 -> DownloadsScreen(vm, open, share)
+                    2 -> DiagnosticsScreen(vm)
+                    3 -> HistoryScreen(vm, open, share)
+                    else -> SettingsScreen(vm) { lang ->
+                        getSharedPreferences("ui", MODE_PRIVATE).edit().putString("lang", lang).apply()
+                        recreate()
+                    }
+                }
             }
         }
-
-        request(NetworkCapabilities.TRANSPORT_WIFI, wifiCb)
-        request(NetworkCapabilities.TRANSPORT_CELLULAR, cellCb)
-
-        handler.postDelayed({
-            release(wifiCb)
-            release(cellCb)
-            onResult(wifiUp && cellUp)
-        }, timeoutMs)
+        if (showAdd) AddDownloadSheet(vm, prefill) { showAdd = false }
     }
 
-    private fun release(cb: ConnectivityManager.NetworkCallback) {
-        try {
-            getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(cb)
-        } catch (_: Exception) {
+    companion object {
+        /** Applies the in-app language choice (fa/en/system) before any resource is read. */
+        fun wrapLocale(base: Context): Context {
+            val lang = base.getSharedPreferences("ui", MODE_PRIVATE).getString("lang", "system") ?: "system"
+            if (lang == "system") return base
+            val cfg = Configuration(base.resources.configuration)
+            val loc = Locale(lang)
+            Locale.setDefault(loc)
+            cfg.setLocale(loc)
+            cfg.setLayoutDirection(loc)
+            return base.createConfigurationContext(cfg)
         }
-        callbacks.remove(cb)
-    }
-
-    override fun onDestroy() {
-        handler.removeCallbacksAndMessages(null)
-        callbacks.toList().forEach { release(it) }
-        super.onDestroy()
     }
 }
