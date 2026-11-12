@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- two Wi-Fi style arcs + download arrow = dual network -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="5" android:strokeLineCap="round"
+        android:pathData="M34,44 A28,28 0 0 1 74,44" />
+    <path android:strokeColor="#B8D2FF" android:strokeWidth="5" android:strokeLineCap="round"
+        android:pathData="M42,53 A17,17 0 0 1 66,53" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M51,58h6v11l6,-6 4,4 -13,13 -13,-13 4,-4 6,6z" />
+</vector>
