@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- settings menu -->
+    <string name="sub_downloads">Simultaneous downloads, connections, speed limit</string>
+    <string name="sub_mobile">Monthly mobile-data cap and usage</string>
+    <string name="sub_notifications">Live speed in the status bar</string>
+    <string name="sub_links">Detect download links you copy</string>
+    <string name="sub_storage">Download folder and file names</string>
+    <string name="sub_appearance">Theme and language</string>
+    <string name="sub_about">Version and developer</string>
+    <string name="back">Back</string>
+
+    <!-- downloads screen -->
+    <string name="dl_filter_all">All</string>
+    <string name="dl_filter_active">Active</string>
+    <string name="dl_filter_queued">Queued</string>
+    <string name="dl_filter_paused">Paused</string>
+    <string name="dl_filter_failed">Failed</string>
+    <string name="dl_summary">%1$d downloads • %2$d running</string>
+    <string name="dl_empty_title">Nothing here</string>
+    <string name="dl_empty_hint">Downloads that are running, waiting, paused or failed show up in this list.</string>
+    <string name="stop_download">Stop</string>
+    <string name="start_download">Start</string>
+
+    <!-- usage filter -->
+    <string name="stats_filter">Filter</string>
+    <string name="stats_filter_title">Filter usage</string>
+    <string name="stats_apply">Show results</string>
+    <string name="stats_period">Period</string>
+
+    <!-- home -->
+    <string name="home_hello">Fast. Doubled.</string>
+    <string name="home_live">Live speed</string>
+    <string name="home_both_on">Dual mode is on</string>
+    <string name="home_add_hint">Paste or copy a file link</string>
+</resources>

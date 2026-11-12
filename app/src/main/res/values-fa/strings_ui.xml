@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- settings menu -->
+    <string name="sub_downloads">دانلود هم‌زمان، اتصال‌ها، محدودیت سرعت</string>
+    <string name="sub_mobile">سقف ماهانه و مصرف دیتای موبایل</string>
+    <string name="sub_notifications">نمایش سرعت زنده در نوار وضعیت</string>
+    <string name="sub_links">تشخیص لینک دانلودِ کپی‌شده</string>
+    <string name="sub_storage">پوشه‌ی دانلود و نام فایل‌ها</string>
+    <string name="sub_appearance">تم و زبان برنامه</string>
+    <string name="sub_about">نسخه و سازنده</string>
+    <string name="back">بازگشت</string>
+
+    <!-- downloads screen -->
+    <string name="dl_filter_all">همه</string>
+    <string name="dl_filter_active">در حال دانلود</string>
+    <string name="dl_filter_queued">در صف</string>
+    <string name="dl_filter_paused">متوقف</string>
+    <string name="dl_filter_failed">ناموفق</string>
+    <string name="dl_summary">%1$d دانلود • %2$d فعال</string>
+    <string name="dl_empty_title">اینجا چیزی نیست</string>
+    <string name="dl_empty_hint">دانلودهای فعال، در صف، متوقف‌شده و ناموفق در این فهرست دیده می‌شوند.</string>
+    <string name="stop_download">توقف</string>
+    <string name="start_download">شروع</string>
+
+    <!-- usage filter -->
+    <string name="stats_filter">فیلتر</string>
+    <string name="stats_filter_title">فیلتر مصرف</string>
+    <string name="stats_apply">نمایش نتیجه</string>
+    <string name="stats_period">بازه‌ی زمانی</string>
+
+    <!-- home -->
+    <string name="home_hello">سریع. دو برابر.</string>
+    <string name="home_live">سرعت لحظه‌ای</string>
+    <string name="home_both_on">حالت دوشبکه‌ای فعال است</string>
+    <string name="home_add_hint">لینک فایل را بچسبانید یا کپی کنید</string>
+</resources>
