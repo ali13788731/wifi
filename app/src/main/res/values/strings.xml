@@ -169,7 +169,7 @@
     <string name="err_auth">This link needs a username and password (the server answered 401).</string>
     <string name="err_unreachable">Cannot reach the server. Check the link and that the internet works.</string>
     <string name="err_range_unsupported">This site does not support downloading from two networks at once (no HTTP Range), so it cannot be downloaded in this app.</string>
-    <string name="err_range_invalid">The server's partial-download answer is invalid, so a safe dual-network download is not possible for this link.</string>
+    <string name="err_range_invalid">The server\'s partial-download answer is invalid, so a safe dual-network download is not possible for this link.</string>
     <string name="err_http">The server returned an error (HTTP %1$s).</string>
     <string name="err_http_404">File not found on the server (HTTP 404). The link may have expired.</string>
     <string name="err_http_403">The server denied access (HTTP 403). The link may need cookies, a Referer, or a login.</string>
