@@ -241,7 +241,7 @@ class DownloadJob(
                     cr.groupValues[3].toLong() != total) throw IOException("Content-Range mismatch")
                 val buf = ByteArray(32 * 1024)
                 var pos = from
-                r.body.byteStream().use { s ->
+                r.body!!.byteStream().use { s ->
                     while (true) {
                         val want = min(buf.size.toLong(), to - pos + 1).toInt()
                         if (want <= 0) break
@@ -295,7 +295,7 @@ class DownloadJob(
                         if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
                         RandomAccessFile(temp, "rw").use { f ->
                             val buf = ByteArray(32 * 1024)
-                            r.body.byteStream().use { s ->
+                            r.body!!.byteStream().use { s ->
                                 while (true) {
                                     val n = s.read(buf)
                                     if (n < 0) break

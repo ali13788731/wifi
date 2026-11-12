@@ -96,7 +96,7 @@ object RangeProbe {
                 val expected = end - start + 1
                 var got = 0L
                 val buf = ByteArray(2048)
-                r.body.byteStream().use { s ->
+                r.body!!.byteStream().use { s ->
                     while (true) {
                         val n = s.read(buf)
                         if (n < 0) break
