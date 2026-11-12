@@ -28,7 +28,7 @@ android {
             )
             // Signing: provide your own keystore via gradle.properties / CI secrets.
             val ks = System.getenv("KEYSTORE_PATH")
-            if (ks != null) {
+            if (!ks.isNullOrEmpty()) {
                 signingConfig = signingConfigs.create("release") {
                     storeFile = file(ks)
                     storePassword = System.getenv("KEYSTORE_PASSWORD")
