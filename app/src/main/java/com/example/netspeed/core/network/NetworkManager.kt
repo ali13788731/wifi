@@ -57,24 +57,29 @@ class NetworkManager @Inject constructor(
         }
     }
 
+    private fun apply(kind: NetKind, network: Network, caps: NetworkCapabilities) {
+        update(kind) {
+            it.copy(
+                network = network,
+                available = true,
+                connected = caps.hasTransport(transportOf(kind)) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
+                ssid = if (kind == NetKind.WIFI) ssidOf(caps) else null
+            )
+        }
+    }
+
     private fun callbackFor(kind: NetKind) = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             update(kind) { it.copy(available = true, network = network) }
+            // Fill in the capabilities right away so a reconnected network is usable immediately.
+            cm.getNetworkCapabilities(network)?.let { apply(kind, network, it) }
         }
 
-        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-            update(kind) {
-                it.copy(
-                    network = network,
-                    available = true,
-                    connected = caps.hasTransport(transportOf(kind)) &&
-                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
-                    validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
-                    metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
-                    ssid = if (kind == NetKind.WIFI) ssidOf(caps) else null
-                )
-            }
-        }
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) =
+            apply(kind, network, caps)
 
         override fun onLost(network: Network) {
             update(kind) {

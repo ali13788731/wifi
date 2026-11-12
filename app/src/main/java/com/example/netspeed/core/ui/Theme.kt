@@ -1,11 +1,8 @@
 package com.example.netspeed.core.ui
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
@@ -13,7 +10,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /** Colors that carry meaning across the whole app: one per network. */
@@ -45,11 +41,7 @@ private val AppShapes = Shapes(
 @Composable
 fun DualNetTheme(mode: String, content: @Composable () -> Unit) {
     val dark = when (mode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
-    val ctx = LocalContext.current
     val scheme = when {
-        // keep the brand palette; Material-You colors only if the user is on Android 12+ AND chose system theme
-        mode == "system" && Build.VERSION.SDK_INT >= 31 && false ->
-            if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         dark -> Dark
         else -> Light
     }

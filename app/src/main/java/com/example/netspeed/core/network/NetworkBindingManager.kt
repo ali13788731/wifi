@@ -28,8 +28,8 @@ class NetworkBindingManager @Inject constructor() {
     private val clients = ConcurrentHashMap<Long, OkHttpClient>()
 
     private val base = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .followRedirects(true)

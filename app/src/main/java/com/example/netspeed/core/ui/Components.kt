@@ -1,5 +1,7 @@
 package com.example.netspeed.core.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,22 +28,29 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.netspeed.R
 import com.example.netspeed.core.common.Format
+import com.example.netspeed.core.common.Texts
 import com.example.netspeed.core.database.DownloadEntity
 import com.example.netspeed.core.downloader.LiveProgress
 
@@ -68,50 +77,85 @@ fun categoryLabel(c: String): String = stringResource(
     }
 )
 
-/** Big gradient card: combined speed plus a bar that shows the Wi-Fi / Mobile split. */
+val CardShape = RoundedCornerShape(22.dp)
+
 @Composable
-fun SpeedHero(total: Long, wifi: Long, mobile: Long, modifier: Modifier = Modifier) {
-    val c = LocalNetColors.current
-    val sum = (wifi + mobile).coerceAtLeast(1)
+fun SoftCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
-        modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        modifier.fillMaxWidth(), shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) { content() }
+}
+
+@Composable
+fun Dot(color: Color, size: Dp = 10.dp) =
+    Box(Modifier.size(size).clip(CircleShape).background(color))
+
+/** Thick rounded progress bar with the text drawn in the middle of it. */
+@Composable
+fun ProgressWithLabel(progress: Float, label: String, modifier: Modifier = Modifier, indeterminate: Boolean = false) {
+    val p by animateFloatAsState(progress.coerceIn(0f, 1f), label = "progress")
+    Box(
+        modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(13.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = .10f)),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            Modifier
-                .background(Brush.linearGradient(listOf(Color(0xFF0B5FFF), Color(0xFF6A3DF0))))
-                .padding(22.dp)
-        ) {
-            Text(stringResource(R.string.total_speed), color = Color.White.copy(alpha = .8f), fontSize = 14.sp)
-            Text(
-                Format.speed(total), color = Color.White,
-                fontSize = 38.sp, fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(14.dp))
-            Row(
-                Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(Color.White.copy(alpha = .22f))
-            ) {
-                val w = wifi.toFloat() / sum
-                val m = mobile.toFloat() / sum
-                if (w > 0f) Box(Modifier.weight(w).fillMaxHeight().background(c.wifi))
-                if (m > 0f) Box(Modifier.weight(m).fillMaxHeight().background(c.mobile))
-                if (w == 0f && m == 0f) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                LegendDot(c.wifi, stringResource(R.string.wifi) + "  " + Format.speed(wifi))
-                LegendDot(c.mobile, stringResource(R.string.mobile) + "  " + Format.speed(mobile))
-            }
-        }
+        if (!indeterminate) Box(
+            Modifier.fillMaxHeight().fillMaxWidth(p).align(Alignment.CenterStart)
+                .background(Brush.horizontalGradient(listOf(Color(0xFF0B5FFF), Color(0xFF6A3DF0))))
+        )
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+            color = if (p > .5f) Color.White else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** Horizontal two-colour bar: share of Wi-Fi vs mobile bytes. */
+@Composable
+fun NetSplitBar(wifiBytes: Long, mobileBytes: Long, modifier: Modifier = Modifier) {
+    val c = LocalNetColors.current
+    val sum = (wifiBytes + mobileBytes).coerceAtLeast(1).toFloat()
+    Row(modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = .10f))) {
+        if (wifiBytes > 0) Box(Modifier.weight(wifiBytes / sum).fillMaxHeight().background(c.wifi))
+        if (mobileBytes > 0) Box(Modifier.weight(mobileBytes / sum).fillMaxHeight().background(c.mobile))
+        if (wifiBytes + mobileBytes == 0L) Spacer(Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun LegendDot(color: Color, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.width(6.dp))
-        Text(text, color = Color.White, fontSize = 13.sp)
+fun SplitLegend(wifiBytes: Long, mobileBytes: Long) {
+    val c = LocalNetColors.current
+    val sum = (wifiBytes + mobileBytes).coerceAtLeast(1)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Dot(c.wifi, 8.dp); Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.wifi) + " " + Format.bytes(wifiBytes) + " (" + (wifiBytes * 100 / sum) + "%)", fontSize = 12.sp)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Dot(c.mobile, 8.dp); Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.mobile) + " " + Format.bytes(mobileBytes) + " (" + (mobileBytes * 100 / sum) + "%)", fontSize = 12.sp)
+        }
+    }
+}
+
+/** Smooth area chart of the last samples (bytes/s). */
+@Composable
+fun SpeedChart(values: List<Long>, color: Color, modifier: Modifier = Modifier) {
+    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(256 * 1024L).toFloat()
+    Canvas(modifier.fillMaxWidth().height(54.dp)) {
+        if (values.size < 2) return@Canvas
+        val dx = size.width / (values.size - 1)
+        val pts = values.mapIndexed { i, v -> Offset(i * dx, size.height - (v / max) * size.height * .92f - 2f) }
+        val line = Path().apply {
+            moveTo(pts[0].x, pts[0].y)
+            for (i in 1 until pts.size) {
+                val mid = (pts[i - 1].x + pts[i].x) / 2
+                cubicTo(mid, pts[i - 1].y, mid, pts[i].y, pts[i].x, pts[i].y)
+            }
+        }
+        val fill = Path().apply { addPath(line); lineTo(size.width, size.height); lineTo(0f, size.height); close() }
+        drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = .35f), color.copy(alpha = 0f))))
+        drawPath(line, color, style = Stroke(width = 3.5f, cap = StrokeCap.Round))
     }
 }
 
@@ -122,13 +166,13 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-/** One download: name, type, size, progress, remaining, ETA, per-network speeds and actions. */
+/** One download: name, type, size, progress in the bar, remaining, ETA, per-network speed and bytes. */
 @Composable
 fun DownloadCard(
     e: DownloadEntity, live: LiveProgress?,
@@ -136,35 +180,31 @@ fun DownloadCard(
     onOpen: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val ctx = LocalContext.current
     val c = LocalNetColors.current
     val done = live?.doneBytes ?: e.doneBytes
     val total = live?.totalBytes ?: e.totalBytes
     val pct = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f
     val running = e.status in setOf("RUNNING", "PROBING", "VERIFYING")
-    Card(
-        modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
+    val finished = e.status == "COMPLETED" || e.status == "CANCELED"
+    val wBytes = live?.wifi?.bytes ?: e.wifiBytes
+    val mBytes = live?.mobile?.bytes ?: e.mobileBytes
+
+    SoftCard(modifier) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        e.fileName.substringAfterLast('.', "?").take(4).uppercase(),
-                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Text(e.fileName.substringAfterLast('.', "?").take(4).uppercase(), fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(e.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        categoryLabel(e.category) + " • " + Format.bytes(total) + " • " + statusLabel(e.status),
-                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(categoryLabel(e.category) + " • " + Format.bytes(total) + " • " + statusLabel(e.status),
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 when (e.status) {
                     "RUNNING", "PROBING" -> IconButton(onPause) { Icon(Icons.Rounded.Pause, stringResource(R.string.pause)) }
@@ -179,30 +219,52 @@ fun DownloadCard(
                     IconButton(onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.delete)) }
                 else IconButton(onCancel) { Icon(Icons.Rounded.Close, stringResource(R.string.cancel)) }
             }
-            if (e.status != "COMPLETED" && e.status != "CANCELED") {
-                Spacer(Modifier.height(10.dp))
-                if (running && total <= 0) LinearProgressIndicator(Modifier.fillMaxWidth())
-                else LinearProgressIndicator(
-                    progress = { pct }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape)
+
+            if (!finished) {
+                Spacer(Modifier.height(12.dp))
+                ProgressWithLabel(
+                    pct, "${(pct * 100).toInt()}%  •  ${Format.bytes(done)} / ${Format.bytes(total)}",
+                    indeterminate = running && total <= 0
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${(pct * 100).toInt()}%  •  " + stringResource(R.string.remaining) + " " +
-                        Format.bytes((total - done).coerceAtLeast(0)), fontSize = 12.sp)
-                    if (live != null) Text(stringResource(R.string.eta) + " " + Format.eta(live.etaSeconds), fontSize = 12.sp)
-                }
-                if (live != null && running) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.wifi) + " " + Format.speed(live.wifi.speedBps), fontSize = 12.sp, color = c.wifi, fontWeight = FontWeight.Medium)
-                        Text(stringResource(R.string.mobile) + " " + Format.speed(live.mobile.speedBps), fontSize = 12.sp, color = c.mobile, fontWeight = FontWeight.Medium)
-                        Text(Format.speed(live.totalSpeedBps), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    live.message?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Text(stringResource(R.string.remaining) + " " + Format.bytes((total - done).coerceAtLeast(0)), fontSize = 12.sp)
+                    if (live != null && running) Text(stringResource(R.string.eta) + " " + Format.eta(live.etaSeconds), fontSize = 12.sp)
                 }
             }
-            if (e.status == "FAILED" && e.error != null)
-                Text(e.error, fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp))
+            if (running && live != null) {
+                Spacer(Modifier.height(8.dp))
+                NetLine(c.wifi, stringResource(R.string.wifi), live.wifi.speedBps, wBytes)
+                Spacer(Modifier.height(4.dp))
+                NetLine(c.mobile, stringResource(R.string.mobile), live.mobile.speedBps, mBytes)
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.total_speed) + ": " + Format.speed(live.totalSpeedBps),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Texts.notice(ctx, live.notice)?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, fontSize = 12.sp, color = c.warn, fontWeight = FontWeight.Medium)
+                }
+            }
+            if (e.status == "COMPLETED" && wBytes + mBytes > 0) {
+                Spacer(Modifier.height(12.dp))
+                NetSplitBar(wBytes, mBytes)
+                Spacer(Modifier.height(6.dp))
+                SplitLegend(wBytes, mBytes)
+            }
+            if (e.status == "FAILED") Text(
+                Texts.error(ctx, e.error), fontSize = 12.sp, color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
+    }
+}
+
+@Composable
+private fun NetLine(color: Color, name: String, speed: Long, bytes: Long) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Dot(color, 8.dp)
+        Spacer(Modifier.width(6.dp))
+        Text(name, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(Format.speed(speed) + "  •  " + Format.bytes(bytes), fontSize = 12.sp)
     }
 }

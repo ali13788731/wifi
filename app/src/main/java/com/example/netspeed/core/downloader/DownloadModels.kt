@@ -26,7 +26,8 @@ data class ProbeResult(
     val etag: String?,
     val lastModified: String?,
     val authRequired: Boolean,
-    val message: String              // human readable explanation / reason
+    val message: String,             // English explanation (logs); the UI localizes by [code]
+    val code: String = "OK"          // OK, RANGE_UNSUPPORTED, RANGE_INVALID, AUTH, UNREACHABLE, HTTP_<n>
 ) {
     /** Multi-part and dual-network mode require a verified Range and a known size. */
     val canMultiPart: Boolean get() = rangeVerified && totalBytes > 0
@@ -55,7 +56,9 @@ data class LiveProgress(
     val wifi: NetStats,
     val mobile: NetStats,
     val startedAt: Long = 0,
-    val message: String? = null
+    /** Machine code shown localized in the UI: wifi_lost, mobile_lost, waiting_wifi, waiting_mobile,
+     *  waiting_both, checking, mobile_limit, or null. */
+    val notice: String? = null
 ) {
     val totalSpeedBps: Long get() = wifi.speedBps + mobile.speedBps
     val percent: Int get() = if (totalBytes > 0) ((doneBytes * 100) / totalBytes).toInt() else 0

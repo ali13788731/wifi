@@ -55,6 +55,7 @@ class RangeProbeTest {
         val p = RangeProbe.probe(client, server.url("/f").toString(), RequestOptions())
         assertFalse(p.rangeVerified)
         assertFalse(p.canMultiPart)
+        assertEquals("RANGE_UNSUPPORTED", p.code)
     }
 
     @Test fun acceptRangesHeaderAloneIsNotTrusted() {
@@ -73,6 +74,7 @@ class RangeProbeTest {
         server.enqueue(MockResponse().setResponseCode(401))
         val p = RangeProbe.probe(client, server.url("/f").toString(), RequestOptions())
         assertTrue(p.authRequired)
+        assertEquals("AUTH", p.code)
     }
 
     @Test fun http416IsReported() {
@@ -84,6 +86,7 @@ class RangeProbeTest {
         val p = RangeProbe.probe(client, server.url("/f").toString(), RequestOptions())
         assertFalse(p.rangeVerified)
         assertTrue(p.message.contains("416"))
+        assertEquals("HTTP_416", p.code)
     }
 
     @Test fun followsRedirect() {
@@ -112,3 +115,4 @@ class RangeProbeTest {
         assertEquals("a=b", r.getHeader("Cookie"))
     }
 }
+

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
@@ -15,13 +16,17 @@ import android.net.TrafficStats
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.example.netspeed.MainActivity
 import com.example.netspeed.R
 import com.example.netspeed.core.common.Format
 import com.example.netspeed.core.common.SettingsRepository
+import com.example.netspeed.core.common.Texts
 import com.example.netspeed.core.downloader.DownloadManager
+import com.example.netspeed.core.downloader.DownloadStatus
+import com.example.netspeed.core.downloader.LiveProgress
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,10 +39,11 @@ import javax.inject.Inject
 
 /**
  * One foreground service for two jobs:
- *  - keeps downloads alive in the background (screen off, activity destroyed)
- *  - shows live speed in the notification AND as a number in the status-bar icon.
- * While downloads run, the per-network speeds are the engine's real measured byte rates.
- * With no downloads it falls back to the device-wide TrafficStats counters.
+ *  - keeps downloads alive in the background (screen off, activity destroyed);
+ *  - shows live speed in the status bar (a two-line icon: Wi-Fi on top, mobile below) and a
+ *    rich notification with progress, remaining, ETA and the per-network speed and bytes.
+ * While downloads run the numbers are the engine's real measured byte rates; with no download it
+ * falls back to the device-wide TrafficStats counters.
  */
 @AndroidEntryPoint
 class DownloadService : Service() {
@@ -46,6 +52,8 @@ class DownloadService : Service() {
     @Inject lateinit var settings: SettingsRepository
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    /** Context that follows the in-app language (fa/en), not only the phone's language. */
+    private val lctx: Context by lazy { MainActivity.wrapLocale(this) }
     private var looping = false
     private var idleTicks = 0
     private var lastTotal = 0L
@@ -55,14 +63,19 @@ class DownloadService : Service() {
     override fun onCreate() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CH_SPEED, getString(R.string.ch_speed), NotificationManager.IMPORTANCE_LOW))
-        nm.createNotificationChannel(NotificationChannel(CH_DONE, getString(R.string.ch_done), NotificationManager.IMPORTANCE_DEFAULT))
-        val n = build(0, 0, 0, null)
+        nm.deleteNotificationChannel("speed")       // old LOW channel: OEMs hide its status-bar icon
+        // DEFAULT importance (but silent) so phones that hide "silent notification icons" still show it.
+        nm.createNotificationChannel(NotificationChannel(CH_LIVE, lctx.getString(R.string.ch_speed), NotificationManager.IMPORTANCE_DEFAULT).apply {
+            setSound(null, null); enableVibration(false); enableLights(false); setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        })
+        nm.createNotificationChannel(NotificationChannel(CH_DONE, lctx.getString(R.string.ch_done), NotificationManager.IMPORTANCE_DEFAULT))
+        val n = idle(0, 0, true)
         if (Build.VERSION.SDK_INT >= 34) startForeground(ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else startForeground(ID, n)
         lastTotal = TrafficStats.getTotalRxBytes(); lastMobile = TrafficStats.getMobileRxBytes()
         lastTime = SystemClock.elapsedRealtime()
-        scope.launch { manager.events.collect { ev -> notifyDone(ev.id, ev.name, ev.ok, ev.message) } }
+        scope.launch { manager.events.collect { ev -> notifyDone(ev.id, ev.name, ev.ok, ev.message, ev.wifiBytes, ev.mobileBytes) } }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -80,28 +93,24 @@ class DownloadService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         while (true) {
             delay(1000)
-            val live = manager.live.value.values.filter { it.status.name == "RUNNING" || it.status.name == "PROBING" }
+            val live = manager.live.value.values.filter {
+                it.status == DownloadStatus.RUNNING || it.status == DownloadStatus.PROBING
+            }
             val showIcon = settings.flow.first().statusBarSpeed
-            val wifi: Long; val mobile: Long
             if (live.isNotEmpty()) {
-                wifi = live.sumOf { it.wifi.speedBps }; mobile = live.sumOf { it.mobile.speedBps }
+                nm.notify(ID, active(live, showIcon))
             } else {
                 val now = SystemClock.elapsedRealtime()
                 val total = TrafficStats.getTotalRxBytes(); val mob = TrafficStats.getMobileRxBytes()
                 val dt = (now - lastTime) / 1000.0
+                var m = 0L; var w = 0L
                 if (dt > 0) {
-                    val m = ((mob - lastMobile).coerceAtLeast(0) / dt).toLong()
-                    val t = ((total - lastTotal).coerceAtLeast(0) / dt).toLong()
-                    mobile = m; wifi = (t - m).coerceAtLeast(0)
-                } else { mobile = 0; wifi = 0 }
+                    m = ((mob - lastMobile).coerceAtLeast(0) / dt).toLong()
+                    w = (((total - lastTotal).coerceAtLeast(0) / dt).toLong() - m).coerceAtLeast(0)
+                }
                 lastTotal = total; lastMobile = mob; lastTime = now
+                nm.notify(ID, idle(w, m, showIcon))
             }
-            val pct: Int? = if (live.isNotEmpty()) {
-                val t = live.sumOf { it.totalBytes.coerceAtLeast(0) }
-                if (t > 0) (live.sumOf { it.doneBytes } * 100 / t).toInt() else -1
-            } else null
-            nm.notify(ID, build(wifi, mobile, live.size, pct, showIcon))
-
             if (live.isEmpty() && !showIcon) { if (++idleTicks > 5) { stopSelf(); return } } else idleTicks = 0
         }
     }
@@ -111,48 +120,112 @@ class DownloadService : Service() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
-    private fun build(wifi: Long, mobile: Long, active: Int, pct: Int?, icon: Boolean = true): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val sum = wifi + mobile
-        val b = NotificationCompat.Builder(this, CH_SPEED)
-            .setSmallIcon(if (icon) IconCompat.createWithBitmap(textIcon(sum)) else IconCompat.createWithResource(this, R.drawable.ic_stat_net))
-            .setContentTitle(getString(R.string.notif_total, Format.speed(sum)))
-            .setContentText(getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile)))
-            .setOngoing(true).setOnlyAlertOnce(true).setSilent(true).setShowWhen(false)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(open)
-        if (active > 0) {
-            b.setSubText(getString(R.string.notif_active, active))
-            if (pct != null && pct >= 0) b.setProgress(100, pct, false) else b.setProgress(0, 0, true)
-            b.addAction(0, getString(R.string.pause_all), pi(ACTION_PAUSE_ALL, 1))
-            b.addAction(0, getString(R.string.cancel_all), pi(ACTION_CANCEL_ALL, 2))
-        } else {
-            b.addAction(0, getString(R.string.resume_all), pi(ACTION_RESUME_ALL, 3))
+    private fun openApp() = PendingIntent.getActivity(
+        this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun base(wifi: Long, mobile: Long, icon: Boolean) = NotificationCompat.Builder(this, CH_LIVE)
+        .setSmallIcon(
+            if (icon) IconCompat.createWithBitmap(speedIcon(wifi, mobile))
+            else IconCompat.createWithResource(this, R.drawable.ic_stat_net)
+        )
+        .setOngoing(true).setOnlyAlertOnce(true).setSilent(true).setShowWhen(false)
+        .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setColor(0xFF0B5FFF.toInt())
+        .setContentIntent(openApp())
+
+    /** Notification while nothing is downloading: device-wide Wi-Fi / mobile speed. */
+    private fun idle(wifi: Long, mobile: Long, icon: Boolean): Notification =
+        base(wifi, mobile, icon)
+            .setContentTitle(lctx.getString(R.string.notif_idle))
+            .setContentText(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile)))
+            .addAction(0, lctx.getString(R.string.resume_all), pi(ACTION_RESUME_ALL, 3))
+            .build()
+
+    /** Rich notification while downloading: progress bar with the numbers in the middle of it. */
+    private fun active(live: List<LiveProgress>, icon: Boolean): Notification {
+        val wifi = live.sumOf { it.wifi.speedBps }
+        val mobile = live.sumOf { it.mobile.speedBps }
+        val total = live.sumOf { it.totalBytes.coerceAtLeast(0) }
+        val done = live.sumOf { it.doneBytes }
+        val wBytes = live.sumOf { it.wifi.bytes }
+        val mBytes = live.sumOf { it.mobile.bytes }
+        val pct = if (total > 0) (done * 100 / total).toInt().coerceIn(0, 100) else 0
+        val speed = wifi + mobile
+        val eta = if (speed > 0) (total - done).coerceAtLeast(0) / speed else -1
+        val title = if (live.size == 1) manager.nameOf(live[0].downloadId) ?: lctx.getString(R.string.app_name)
+        else lctx.getString(R.string.notif_n_downloads, live.size)
+        val notice = live.firstNotNullOfOrNull { Texts.notice(lctx, it.notice) }
+
+        val pctText = "$pct%  •  ${Format.bytes(done)} / ${Format.bytes(total)}"
+        val wifiLine = "● " + lctx.getString(R.string.wifi) + ":  " + Format.speed(wifi) + "  •  " + Format.bytes(wBytes)
+        val mobLine = "● " + lctx.getString(R.string.mobile) + ":  " + Format.speed(mobile) + "  •  " + Format.bytes(mBytes)
+
+        val small = RemoteViews(packageName, R.layout.notif_small).apply {
+            setTextViewText(R.id.n_title, title)
+            setProgressBar(R.id.n_bar, 100, pct, total <= 0)
+            setTextViewText(R.id.n_pct, pctText)
+            setTextViewText(R.id.n_speeds, notice
+                ?: (lctx.getString(R.string.wifi) + " " + Format.speed(wifi) + "  |  " + lctx.getString(R.string.mobile) + " " + Format.speed(mobile)))
         }
-        return b.build()
+        val big = RemoteViews(packageName, R.layout.notif_big).apply {
+            setTextViewText(R.id.n_title, title)
+            setProgressBar(R.id.n_bar, 100, pct, total <= 0)
+            setTextViewText(R.id.n_pct, pctText)
+            setTextViewText(R.id.n_remain, notice
+                ?: (lctx.getString(R.string.remaining) + " " + Format.bytes((total - done).coerceAtLeast(0)) +
+                    "  •  " + lctx.getString(R.string.eta) + " " + Format.eta(eta)))
+            setTextViewText(R.id.n_wifi, wifiLine)
+            setTextViewText(R.id.n_mobile, mobLine)
+            setTextViewText(R.id.n_total, lctx.getString(R.string.notif_total, Format.speed(speed)))
+            setTextColor(R.id.n_wifi, 0xFF2F80FF.toInt())
+            setTextColor(R.id.n_mobile, 0xFFFF8A3D.toInt())
+        }
+        return base(wifi, mobile, icon)
+            .setContentTitle(title)
+            .setContentText(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile)))
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(small)
+            .setCustomBigContentView(big)
+            .addAction(0, lctx.getString(R.string.pause_all), pi(ACTION_PAUSE_ALL, 1))
+            .addAction(0, lctx.getString(R.string.cancel_all), pi(ACTION_CANCEL_ALL, 2))
+            .build()
     }
 
-    private fun notifyDone(id: Long, name: String, ok: Boolean, msg: String?) {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+    private fun notifyDone(id: Long, name: String, ok: Boolean, code: String?, wifiB: Long, mobB: Long) {
+        val text = if (ok) {
+            val sum = (wifiB + mobB).coerceAtLeast(1)
+            lctx.getString(R.string.notif_done_split, Format.bytes(wifiB), (wifiB * 100 / sum).toInt(),
+                Format.bytes(mobB), (mobB * 100 / sum).toInt())
+        } else Texts.error(lctx, code)
         val n = NotificationCompat.Builder(this, CH_DONE)
             .setSmallIcon(if (ok) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
-            .setContentTitle(getString(if (ok) R.string.notif_done else R.string.notif_failed))
-            .setContentText(if (ok) name else "$name — ${msg ?: ""}")
-            .setAutoCancel(true).setContentIntent(open).build()
+            .setContentTitle(lctx.getString(if (ok) R.string.notif_done else R.string.notif_failed) + ": " + name)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setColor(0xFF0B5FFF.toInt())
+            .setAutoCancel(true).setContentIntent(openApp()).build()
         getSystemService(NotificationManager::class.java).notify(1000 + id.toInt(), n)
     }
 
-    /** Draws the total speed (MB/s) as the status-bar icon. */
-    private fun textIcon(bps: Long): Bitmap {
-        val mb = bps / (1024.0 * 1024.0)
-        val text = if (mb >= 10) "%.0f".format(mb) else "%.1f".format(mb)
+    /** Status-bar icon: Wi-Fi speed on the top line, mobile speed below (MB/s, one decimal). */
+    private fun speedIcon(wifi: Long, mobile: Long): Bitmap {
+        fun f(bps: Long): String {
+            val mb = bps / (1024.0 * 1024.0)
+            return when { mb >= 10 -> "%.0f".format(mb); mb >= 0.05 -> "%.1f".format(mb); else -> "0" }
+        }
         val size = 96
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE; textAlign = Paint.Align.CENTER; isFakeBoldText = true
-            textSize = if (text.length >= 3) 64f else 80f
+            color = Color.WHITE; textAlign = Paint.Align.CENTER; isFakeBoldText = true; textSize = 46f
         }
-        Canvas(bmp).drawText(text, size / 2f, size / 2f - (p.descent() + p.ascent()) / 2f, p)
+        val c = Canvas(bmp)
+        c.drawText(f(wifi), size / 2f, 44f, p)
+        c.drawText(f(mobile), size / 2f, 92f, p)
+        // thin divider so the two numbers read as two networks
+        c.drawRect(14f, 49f, size - 14f, 52f, Paint().apply { color = Color.WHITE; alpha = 160 })
         return bmp
     }
 
@@ -160,7 +233,7 @@ class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        const val CH_SPEED = "speed"
+        const val CH_LIVE = "live"
         const val CH_DONE = "done"
         const val ID = 1
         const val ACTION_PAUSE_ALL = "dualnet.PAUSE_ALL"

@@ -40,7 +40,11 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class DownloadEvent(val id: Long, val name: String, val ok: Boolean, val message: String?)
+/** [message] is an error code (see [Err]) when ok == false. Byte split is filled when ok == true. */
+data class DownloadEvent(
+    val id: Long, val name: String, val ok: Boolean, val message: String?,
+    val wifiBytes: Long = 0, val mobileBytes: Long = 0
+)
 
 /** Queue, priorities, concurrency limit, pause/resume/cancel, retry, scheduling, restore. */
 @Singleton
@@ -59,6 +63,8 @@ class DownloadManager @Inject constructor(
     private val pumpLock = Mutex()
     private val limiter = RateLimiter(0)
     private val mobileUsed = AtomicLong(0)
+    private val names = ConcurrentHashMap<Long, String>()
+    fun nameOf(id: Long): String? = names[id]
 
     private val _live = MutableStateFlow<Map<Long, LiveProgress>>(emptyMap())
     val live: StateFlow<Map<Long, LiveProgress>> = _live.asStateFlow()
@@ -68,9 +74,21 @@ class DownloadManager @Inject constructor(
 
     val all get() = dao.observeAll()
 
+    /** Last 60 seconds of real per-network speed (wifi, mobile) in bytes/s, newest last. */
+    private val _history = MutableStateFlow<List<Pair<Long, Long>>>(List(60) { 0L to 0L })
+    val speedHistory: StateFlow<List<Pair<Long, Long>>> = _history.asStateFlow()
+
     init {
         net.startMonitoring()
         scope.launch { settings.flow.collect { limiter.bytesPerSec = it.speedLimitBps } }
+        scope.launch {
+            while (true) {
+                delay(1000)
+                val r = _live.value.values.filter { it.status == DownloadStatus.RUNNING }
+                val point = r.sumOf { it.wifi.speedBps } to r.sumOf { it.mobile.speedBps }
+                _history.update { (it + point).takeLast(60) }
+            }
+        }
         scope.launch {
             while (true) {                       // scheduler + mobile-usage refresh
                 refreshMobileUsed()
@@ -99,16 +117,18 @@ class DownloadManager @Inject constructor(
     }
 
     suspend fun add(
-        url: String, probe: ProbeResult, o: RequestOptions, mode: NetworkMode,
+        url: String, probe: ProbeResult, o: RequestOptions,
         nameOverride: String? = null, scheduledAt: Long = 0, priority: Int = 0
     ): Long {
+        // A link that cannot do HTTP Range cannot be downloaded over two networks: refuse it.
+        if (!probe.canMultiPart) return -1
         val s = settings.flow.first()
         val name = Format.safeName(nameOverride ?: probe.fileName ?: "download.bin")
         val id = dao.insert(
             DownloadEntity(
                 url = url, finalUrl = probe.finalUrl, fileName = name, mimeType = probe.mimeType,
                 category = Format.category(name, probe.mimeType), totalBytes = probe.totalBytes,
-                mode = mode.name, rangeVerified = probe.rangeVerified, etag = probe.etag,
+                mode = NetworkMode.DUAL.name, rangeVerified = true, etag = probe.etag,
                 lastModified = probe.lastModified, destUri = s.saveTree,
                 userAgent = o.userAgent, referer = o.referer, cookies = o.cookies,
                 username = o.username, password = o.password,
@@ -175,6 +195,7 @@ class DownloadManager @Inject constructor(
     }
 
     private fun start(e: DownloadEntity, conns: Int, mobileLimit: Long, autoRetry: Boolean) {
+        names[e.id] = e.fileName
         net.acquire()
         ContextCompat.startForegroundService(ctx, Intent(ctx, DownloadService::class.java))
         val flow = MutableStateFlow(
@@ -194,7 +215,7 @@ class DownloadManager @Inject constructor(
                 } catch (ce: CancellationException) {
                     throw ce
                 } catch (t: Throwable) {
-                    JobOutcome.Failed(t.message ?: t.javaClass.simpleName)
+                    JobOutcome.Failed(Err.UNKNOWN, t.message ?: t.javaClass.simpleName)
                 }
                 handleOutcome(e, outcome, autoRetry)
             } catch (ce: CancellationException) {
@@ -235,22 +256,20 @@ class DownloadManager @Inject constructor(
                         completedAt = System.currentTimeMillis(), error = null
                     ))
                     refreshMobileUsed()
-                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, true, null))
+                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, true, null, outcome.wifiBytes, outcome.mobileBytes))
                 } catch (t: Throwable) {
-                    dao.setStatus(e.id, "FAILED", "Could not save file: ${t.message}")
-                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, false, t.message))
+                    dao.setStatus(e.id, "FAILED", Err.SAVE_FAILED)
+                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, false, Err.SAVE_FAILED))
                 }
             }
             is JobOutcome.Failed -> {
-                val retryable = autoRetry && fresh.retryCount < 3 &&
-                    !outcome.message.startsWith("The server requires") &&
-                    !outcome.message.startsWith("Verification failed")
+                val retryable = autoRetry && fresh.retryCount < 3 && outcome.code !in Err.permanent
                 if (retryable) {
-                    dao.update(fresh.copy(status = "QUEUED", retryCount = fresh.retryCount + 1, error = outcome.message))
+                    dao.update(fresh.copy(status = "QUEUED", retryCount = fresh.retryCount + 1, error = outcome.code))
                     delay(3000L * (fresh.retryCount + 1))
                 } else {
-                    dao.setStatus(e.id, "FAILED", outcome.message)
-                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, false, outcome.message))
+                    dao.setStatus(e.id, "FAILED", outcome.code)
+                    _events.tryEmit(DownloadEvent(e.id, fresh.fileName, false, outcome.code))
                 }
             }
         }
