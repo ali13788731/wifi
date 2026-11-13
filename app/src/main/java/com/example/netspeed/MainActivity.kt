@@ -247,7 +247,11 @@ class MainActivity : ComponentActivity() {
         /** Applies the in-app language choice (fa/en/system) before any resource is read. */
         fun wrapLocale(base: Context): Context {
             val lang = base.getSharedPreferences("ui", MODE_PRIVATE).getString("lang", "system") ?: "system"
-            if (lang == "system") return base
+            if (lang == "system") {
+                com.example.netspeed.core.common.Format.persian = Locale.getDefault().language == "fa"
+                return base
+            }
+            com.example.netspeed.core.common.Format.persian = lang == "fa"
             val cfg = Configuration(base.resources.configuration)
             val loc = Locale(lang)
             Locale.setDefault(loc)

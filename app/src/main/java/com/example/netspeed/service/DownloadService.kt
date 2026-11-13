@@ -55,7 +55,9 @@ class DownloadService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     /** Context that follows the in-app language (fa/en), not only the phone's language. */
-    private val lctx: Context by lazy { MainActivity.wrapLocale(this) }
+    private var lctx: Context = this
+    /** Re-read the language every time: the user may switch it while the service is running. */
+    private fun refreshLocale() { lctx = MainActivity.wrapLocale(this) }
     private var looping = false
     private var idleTicks = 0
     private var lastTotal = 0L
@@ -64,6 +66,7 @@ class DownloadService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        refreshLocale()
         val nm = getSystemService(NotificationManager::class.java)
         nm.deleteNotificationChannel("speed")       // old LOW channel: OEMs hide its status-bar icon
         // DEFAULT importance (but silent) so phones that hide "silent notification icons" still show it.
@@ -81,9 +84,15 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        refreshLocale()
         when (intent?.action) {
             ACTION_PAUSE_ALL -> manager.pauseAll()
-            ACTION_RESUME_ALL -> manager.resumeAll()
+            ACTION_RESUME_ALL -> {
+                // continuing needs both networks: say which one is off instead of silently doing nothing
+                val missing = manager.missingNetwork()
+                if (missing != null) android.widget.Toast.makeText(lctx, Texts.blocked(lctx, missing), android.widget.Toast.LENGTH_LONG).show()
+                else manager.resumeAll()
+            }
             ACTION_CANCEL_ALL -> manager.live.value.keys.forEach { manager.cancel(it) }
         }
         manager.restore()
@@ -95,6 +104,7 @@ class DownloadService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         while (true) {
             delay(1000)
+            refreshLocale()
             val live = manager.live.value.values.filter {
                 it.status == DownloadStatus.RUNNING || it.status == DownloadStatus.PROBING
             }
@@ -161,18 +171,20 @@ class DownloadService : Service() {
         else lctx.getString(R.string.notif_n_downloads, live.size)
         val notice = live.firstNotNullOfOrNull { Texts.notice(lctx, it.notice) }
 
-        val pctText = "$pct%  •  ${Format.bytes(done)} / ${Format.bytes(total)}"
+        val pctText = Format.pct(pct) + "  •  " + Format.bytes(done) + " / " + Format.bytes(total)
         val wifiLine = "● " + lctx.getString(R.string.wifi) + ":  " + Format.speed(wifi) + "  •  " + Format.bytes(wBytes)
         val mobLine = "● " + lctx.getString(R.string.mobile) + ":  " + Format.speed(mobile) + "  •  " + Format.bytes(mBytes)
 
-        val small = RemoteViews(packageName, R.layout.notif_small).apply {
+        // Persian gets its own right-to-left layouts (the system layout direction follows the phone, not the app)
+        val rtl = Format.persian
+        val small = RemoteViews(packageName, if (rtl) R.layout.notif_small_rtl else R.layout.notif_small).apply {
             setTextViewText(R.id.n_title, title)
             setProgressBar(R.id.n_bar, 100, pct, total <= 0)
             setTextViewText(R.id.n_pct, pctText)
             setTextViewText(R.id.n_speeds, notice
                 ?: (lctx.getString(R.string.wifi) + " " + Format.speed(wifi) + "  |  " + lctx.getString(R.string.mobile) + " " + Format.speed(mobile)))
         }
-        val big = RemoteViews(packageName, R.layout.notif_big).apply {
+        val big = RemoteViews(packageName, if (rtl) R.layout.notif_big_rtl else R.layout.notif_big).apply {
             setTextViewText(R.id.n_title, title)
             setProgressBar(R.id.n_bar, 100, pct, total <= 0)
             setTextViewText(R.id.n_pct, pctText)

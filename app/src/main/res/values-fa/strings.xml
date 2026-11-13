@@ -33,11 +33,11 @@
     <string name="no_downloads_hint">روی + بزنید و لینک را بچسبانید تا دانلود دوشبکه‌ای شروع شود.</string>
 
     <string name="add_download">دانلود جدید</string>
-    <string name="url">لینک (URL)</string>
+    <string name="url">لینک</string>
     <string name="paste_clipboard">لینک در کلیپ‌بورد پیدا شد — استفاده شود</string>
     <string name="advanced">گزینه‌های پیشرفته</string>
-    <string name="user_agent">User-Agent</string>
-    <string name="referer">Referer</string>
+    <string name="user_agent">شناسه‌ی مرورگر</string>
+    <string name="referer">صفحه‌ی مرجع</string>
     <string name="cookies">کوکی</string>
     <string name="username">نام کاربری</string>
     <string name="password">رمز عبور</string>
@@ -45,8 +45,8 @@
     <string name="checking">در حال بررسی…</string>
     <string name="file_name">نام فایل</string>
     <string name="file_size">حجم</string>
-    <string name="range_ok">Range تأیید شد — دانلود دوشبکه‌ای ممکن است</string>
-    <string name="range_no">Range تأیید نشد — دانلود معمولی تک‌اتصالی</string>
+    <string name="range_ok">پشتیبانی از دانلود تکه‌ای تأیید شد — دانلود دوشبکه‌ای ممکن است</string>
+    <string name="range_no">پشتیبانی از دانلود تکه‌ای تأیید نشد — دانلود معمولی تک‌اتصالی</string>
     <string name="network_mode">حالت شبکه</string>
     <string name="mode_dual">وای‌فای + موبایل</string>
     <string name="mode_wifi">فقط وای‌فای</string>
@@ -160,11 +160,11 @@
     <string name="err_no_both">وای‌فای و دیتای موبایل هر دو خاموش‌اند. برای دانلود هر دو را روشن کنید.</string>
     <string name="err_auth">این لینک نام کاربری و رمز عبور می‌خواهد (سرور پاسخ ۴۰۱ داد).</string>
     <string name="err_unreachable">به سرور دسترسی ندارم. لینک را بررسی کنید و مطمئن شوید اینترنت کار می‌کند.</string>
-    <string name="err_range_unsupported">این سایت دانلود هم‌زمان از دو شبکه را پشتیبانی نمی‌کند (HTTP Range ندارد)، پس در این برنامه قابل دانلود نیست.</string>
+    <string name="err_range_unsupported">این سایت دانلود هم‌زمان از دو شبکه را پشتیبانی نمی‌کند (دانلود تکه‌ای ندارد)، پس در این برنامه قابل دانلود نیست.</string>
     <string name="err_range_invalid">پاسخ سرور برای دانلود تکه‌ای معتبر نیست؛ پس دانلود دوشبکه‌ای امن برای این لینک ممکن نیست.</string>
-    <string name="err_http">سرور خطا برگرداند (HTTP %1$s).</string>
-    <string name="err_http_404">فایل روی سرور پیدا نشد (HTTP 404). شاید لینک منقضی شده باشد.</string>
-    <string name="err_http_403">سرور دسترسی را رد کرد (HTTP 403). شاید لینک به کوکی، Referer یا ورود نیاز داشته باشد.</string>
+    <string name="err_http">سرور خطا برگرداند (کد %1$s).</string>
+    <string name="err_http_404">فایل روی سرور پیدا نشد (کد ۴۰۴). شاید لینک منقضی شده باشد.</string>
+    <string name="err_http_403">سرور دسترسی را رد کرد (کد ۴۰۳). شاید لینک به کوکی، صفحه‌ی مرجع یا ورود نیاز داشته باشد.</string>
     <string name="err_file_changed">فایل روی سرور در حین دانلود تغییر کرد. دانلود را دوباره شروع کنید.</string>
     <string name="err_verify">فایل دانلودشده تأیید نشد (حجم یا تکه‌ها نمی‌خوانند).</string>
     <string name="err_save">فایل دانلود شد ولی ذخیره نشد. فضای خالی حافظه و دسترسی پوشه را بررسی کنید.</string>

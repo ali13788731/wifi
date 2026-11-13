@@ -67,7 +67,7 @@ fun DiagnosticsScreen(vm: AppViewModel) {
                 Row2(stringResource(R.string.diag_duration), Format.eta(dur))
                 val sum = (w.bytes + m.bytes).coerceAtLeast(1)
                 Row2(stringResource(R.string.diag_utilization),
-                    "${stringResource(R.string.wifi)} ${w.bytes * 100 / sum}%  /  ${stringResource(R.string.mobile)} ${m.bytes * 100 / sum}%")
+                    "${stringResource(R.string.wifi)} ${Format.pct((w.bytes * 100 / sum).toInt())}  /  ${stringResource(R.string.mobile)} ${Format.pct((m.bytes * 100 / sum).toInt())}")
                 Row2(stringResource(R.string.dual_network), stringResource(if (net.dualReady) R.string.yes else R.string.no))
             }
         }
@@ -91,7 +91,7 @@ private fun NetDiag(title: String, s: NetState, st: NetStats, color: Color, show
             Row2(stringResource(R.string.diag_transferring), b(st.speedBps > 0))
             Row2(stringResource(R.string.diag_speed), Format.speed(st.speedBps))
             Row2(stringResource(R.string.diag_bytes), Format.bytes(st.bytes))
-            Row2(stringResource(R.string.diag_connections), st.activeConnections.toString())
+            Row2(stringResource(R.string.diag_connections), Format.n(st.activeConnections))
             Row2(stringResource(R.string.diag_segments), st.segments.sorted().joinToString(", ").ifEmpty { "—" })
         }
     }

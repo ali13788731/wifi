@@ -46,6 +46,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,8 +102,10 @@ fun HomeScreen(
     val mSpeed = running.sumOf { it.mobile.speedBps }
     val wBytes = running.sumOf { it.wifi.bytes }
     val mBytes = running.sumOf { it.mobile.bytes }
-    // the big number glides to the new value instead of jumping
-    val shownSpeed by animateFloatAsState((wSpeed + mSpeed).toFloat(), tween(600), label = "speed")
+    var blocked by remember { mutableStateOf<String?>(null) }
+    val guard: (() -> Unit) -> Unit = { action -> vm.missingNetwork()?.let { blocked = it } ?: action() }
+
+    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it) { blocked = null } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -145,7 +149,7 @@ fun HomeScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(stringResource(R.string.home_live), color = Color.White.copy(alpha = .85f), fontSize = 14.sp)
                             }
-                            Text(Format.speed(shownSpeed.toLong()), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(Format.speed(wSpeed + mSpeed), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold)
                             Spacer(Modifier.height(14.dp))
                             val sum = (wSpeed + mSpeed).coerceAtLeast(1)
                             Text(
@@ -206,31 +210,13 @@ fun HomeScreen(
                 }
             }
 
-            // ---- quick "paste a link" card
-            item {
-                Reveal(4) {
-                    SoftCard {
-                        Row(Modifier.fillMaxWidth().clickable { onAdd() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconTile(Icons.Rounded.Link, MaterialTheme.colorScheme.primary, 44.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(stringResource(R.string.add_download), fontWeight = FontWeight.Bold)
-                                Text(stringResource(R.string.home_add_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Icon(Icons.Rounded.Add, null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
-            }
-
             item {
                 Reveal(5) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile(stringResource(R.string.active), active.size.toString(), Modifier.weight(1f))
                         StatTile(stringResource(R.string.pending),
-                            downloads.count { it.status in setOf("QUEUED", "PAUSED") }.toString(), Modifier.weight(1f), c.warn)
+                            downloads.count { it.status in setOf("QUEUED", "PAUSED") }.let { Format.n(it) }, Modifier.weight(1f), c.warn)
                         StatTile(stringResource(R.string.completed),
-                            downloads.count { it.status == "COMPLETED" }.toString(), Modifier.weight(1f), c.ok)
+                            Format.n(downloads.count { it.status == "COMPLETED" }), Modifier.weight(1f), c.ok)
                     }
                 }
             }
@@ -241,16 +227,14 @@ fun HomeScreen(
                         IconTile(Icons.Rounded.CloudDownload, MaterialTheme.colorScheme.primary, 64.dp)
                         Spacer(Modifier.height(12.dp))
                         Text(stringResource(R.string.no_downloads), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(stringResource(R.string.no_downloads_hint), fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, start = 24.dp, end = 24.dp))
                     }
                 }
             }
             items(active, key = { it.id }) { e ->
                 DownloadCard(
                     e, live[e.id],
-                    onPause = { vm.manager.pause(e.id) }, onResume = { vm.manager.resume(e.id) },
-                    onCancel = { vm.manager.cancel(e.id) }, onRetry = { vm.manager.retry(e.id) },
+                    onPause = { vm.manager.pause(e.id) }, onResume = { guard { vm.manager.resume(e.id) } },
+                    onCancel = { vm.manager.cancel(e.id) }, onRetry = { guard { vm.manager.retry(e.id) } },
                     onOpen = { e.resultUri?.let(onOpenFile) }, onShare = { e.resultUri?.let(onShare) },
                     onDelete = { vm.manager.remove(e.id, false) }
                 )

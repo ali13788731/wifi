@@ -66,6 +66,9 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
     val list = all.filter { it.status != "COMPLETED" && it.status != "CANCELED" }
     var toDelete by remember { mutableStateOf<DownloadEntity?>(null) }
     var filter by rememberSaveable { mutableStateOf("ALL") }
+    var blocked by remember { mutableStateOf<String?>(null) }
+    // Starting / continuing needs BOTH Wi-Fi and mobile data: say which one is off.
+    val guard: (() -> Unit) -> Unit = { action -> vm.missingNetwork()?.let { blocked = it } ?: action() }
 
     val nActive = list.count { it.status in ACTIVE }
     val nQueued = list.count { it.status == "QUEUED" }
@@ -91,7 +94,7 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
         Column(Modifier.fillMaxWidth().padding(16.dp, 12.dp, 16.dp, 0.dp)) {
             Text(stringResource(R.string.nav_downloads), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
             if (list.isNotEmpty()) Text(
-                stringResource(R.string.dl_summary, list.size, nActive), fontSize = 13.sp,
+                stringResource(R.string.dl_summary, list.size), fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -109,7 +112,7 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
                     Icon(Icons.Rounded.Pause, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
                     Text(stringResource(R.string.pause_all_btn), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-                if (nPaused > 0) Button({ vm.manager.resumeAll() }, Modifier.weight(1f), shape = CircleShape) {
+                if (nPaused > 0) Button({ guard { vm.manager.resumeAll() } }, Modifier.weight(1f), shape = CircleShape) {
                     Icon(Icons.Rounded.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.size(6.dp))
                     Text(stringResource(R.string.resume_all_btn), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -149,8 +152,8 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
                 Box(Modifier.animateItemPlacement()) {
                     DownloadCard(
                         e, live[e.id],
-                        onPause = { vm.manager.pause(e.id) }, onResume = { vm.manager.resume(e.id) },
-                        onCancel = { vm.manager.cancel(e.id) }, onRetry = { vm.manager.retry(e.id) },
+                        onPause = { vm.manager.pause(e.id) }, onResume = { guard { vm.manager.resume(e.id) } },
+                        onCancel = { vm.manager.cancel(e.id) }, onRetry = { guard { vm.manager.retry(e.id) } },
                         onOpen = { e.resultUri?.let(onOpenFile) }, onShare = { e.resultUri?.let(onShare) },
                         onDelete = { toDelete = e }
                     )
@@ -158,6 +161,8 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
             }
         }
     }
+
+    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it) { blocked = null } }
 
     toDelete?.let { e ->
         var alsoFile by remember { mutableStateOf(false) }
@@ -178,5 +183,5 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
 
 @Composable
 private fun Chip(key: String, selected: String, label: Int, count: Int, onSelect: (String) -> Unit) {
-    FilterChip(selected == key, { onSelect(key) }, { Text(stringResource(label) + "  " + count) })
+    FilterChip(selected == key, { onSelect(key) }, { Text(stringResource(label) + "  " + com.example.netspeed.core.common.Format.n(count)) })
 }

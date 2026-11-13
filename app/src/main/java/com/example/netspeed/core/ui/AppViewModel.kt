@@ -49,6 +49,9 @@ class AppViewModel @Inject constructor(
     var addState by mutableStateOf<AddState>(AddState.Idle)
         private set
 
+    /** null when both networks are on; otherwise the code of what is missing (see Texts.blocked). */
+    fun missingNetwork(): String? = manager.missingNetwork()
+
     fun resetAdd() { addState = AddState.Idle }
 
     fun inspect(url: String, opts: RequestOptions) {

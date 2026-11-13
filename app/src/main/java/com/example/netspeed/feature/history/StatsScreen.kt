@@ -85,7 +85,7 @@ fun StatsScreen(vm: AppViewModel) {
                 Text("$rangeName • $catName", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             FilledTonalButton({ sheet = true }, shape = CircleShape) {
-                BadgedBox(badge = { if (activeFilters > 0) Badge { Text(activeFilters.toString()) } }) {
+                BadgedBox(badge = { if (activeFilters > 0) Badge { Text(Format.n(activeFilters)) } }) {
                     Icon(Icons.Rounded.Tune, null, Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(8.dp))
@@ -106,7 +106,7 @@ fun StatsScreen(vm: AppViewModel) {
             BigNumber(stringResource(R.string.mobile), Format.bytes(m), c.mobile, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BigNumber(stringResource(R.string.completed), rows.size.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            BigNumber(stringResource(R.string.completed), Format.n(rows.size), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
             BigNumber(stringResource(R.string.stats_biggest), Format.bytes(rows.maxOfOrNull { it.totalBytes } ?: 0), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
         }
 
@@ -132,8 +132,8 @@ fun StatsScreen(vm: AppViewModel) {
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(byDay.first().first, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(byDay.last().first, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(Format.d(byDay.first().first), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(Format.d(byDay.last().first), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -171,7 +171,7 @@ private fun UsageFilterSheet(
     range: TimeRange, cat: String, onRange: (TimeRange) -> Unit, onCat: (String) -> Unit,
     onReset: () -> Unit, onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

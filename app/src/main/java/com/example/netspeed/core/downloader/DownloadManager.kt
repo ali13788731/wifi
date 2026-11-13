@@ -142,6 +142,17 @@ class DownloadManager @Inject constructor(
 
     // ---------------------------------------------------------------- control
 
+    /** null when both Wi-Fi and mobile data are usable, else NO_WIFI / NO_MOBILE / NO_BOTH. */
+    fun missingNetwork(): String? {
+        val n = net.state.value
+        return when {
+            !n.wifi.usable && !n.mobile.usable -> "NO_BOTH"
+            !n.wifi.usable -> "NO_WIFI"
+            !n.mobile.usable -> "NO_MOBILE"
+            else -> null
+        }
+    }
+
     fun pause(id: Long) { stopReason[id] = DownloadStatus.PAUSED; jobs[id]?.cancel() ?: scope.launch { dao.setStatus(id, "PAUSED") } }
     fun cancel(id: Long) { stopReason[id] = DownloadStatus.CANCELED; jobs[id]?.cancel() ?: scope.launch { cleanup(id, "CANCELED") } }
     fun resume(id: Long) = scope.launch { dao.setStatus(id, "QUEUED"); pump() }

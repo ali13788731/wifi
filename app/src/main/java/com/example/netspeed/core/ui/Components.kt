@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -181,11 +182,11 @@ fun SplitLegend(wifiBytes: Long, mobileBytes: Long) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(c.wifi, 8.dp); Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.wifi) + " " + Format.bytes(wifiBytes) + " (" + (wifiBytes * 100 / sum) + "%)", fontSize = 12.sp)
+            Text(stringResource(R.string.wifi) + " " + Format.bytes(wifiBytes) + " (" + Format.pct((wifiBytes * 100 / sum).toInt()) + ")", fontSize = 12.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(c.mobile, 8.dp); Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.mobile) + " " + Format.bytes(mobileBytes) + " (" + (mobileBytes * 100 / sum) + "%)", fontSize = 12.sp)
+            Text(stringResource(R.string.mobile) + " " + Format.bytes(mobileBytes) + " (" + Format.pct((mobileBytes * 100 / sum).toInt()) + ")", fontSize = 12.sp)
         }
     }
 }
@@ -267,7 +268,7 @@ fun DownloadCard(
             if (!finished) {
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${(pct * 100).toInt()}%", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text(Format.pct((pct * 100).toInt()), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(Format.bytes(done) + " / " + Format.bytes(total), fontSize = 12.sp,
                         color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -281,15 +282,20 @@ fun DownloadCard(
                     fontSize = 12.sp, color = cs.onSurfaceVariant)
             }
 
-            if (e.status == "RUNNING" && live != null) {
-                Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NetChip(c.wifi, stringResource(R.string.wifi), live.wifi.speedBps, wBytes, Modifier.weight(1f))
-                    NetChip(c.mobile, stringResource(R.string.mobile), live.mobile.speedBps, mBytes, Modifier.weight(1f))
+            // Exactly how much came through each network so far (and the live speed while running).
+            val showUsage = e.status == "RUNNING" || (!finished && e.status != "VERIFYING" && wBytes + mBytes > 0)
+            if (showUsage) {
+                Spacer(Modifier.height(12.dp))
+                NetUsagePanel(
+                    wBytes, mBytes,
+                    if (e.status == "RUNNING" && live != null) live.wifi.speedBps else null,
+                    if (e.status == "RUNNING" && live != null) live.mobile.speedBps else null
+                )
+                if (e.status == "RUNNING" && live != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.total_speed) + ": " + Format.speed(live.totalSpeedBps),
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = cs.primary)
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.total_speed) + ": " + Format.speed(live.totalSpeedBps),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = cs.primary)
             }
             if (running && live != null) Texts.notice(ctx, live.notice)?.let {
                 Spacer(Modifier.height(6.dp))
@@ -338,14 +344,60 @@ private fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit, 
     }
 }
 
+/**
+ * Two tiles side by side: Wi-Fi and mobile data. Each shows the exact amount downloaded through
+ * that network, its share of the total and (while running) its live speed. A thin bar below
+ * shows the split.
+ */
 @Composable
-private fun NetChip(color: Color, name: String, speed: Long, bytes: Long, modifier: Modifier) {
-    Column(modifier.clip(MaterialTheme.shapes.small).background(color.copy(alpha = .10f)).padding(10.dp)) {
+fun NetUsagePanel(wifiBytes: Long, mobileBytes: Long, wifiSpeed: Long?, mobileSpeed: Long?, modifier: Modifier = Modifier) {
+    val c = LocalNetColors.current
+    val sum = (wifiBytes + mobileBytes).coerceAtLeast(1)
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NetTile(c.wifi, stringResource(R.string.wifi), wifiBytes, (wifiBytes * 100 / sum).toInt(), wifiSpeed, Modifier.weight(1f))
+            NetTile(c.mobile, stringResource(R.string.mobile), mobileBytes, (mobileBytes * 100 / sum).toInt(), mobileSpeed, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        NetSplitBar(wifiBytes, mobileBytes)
+    }
+}
+
+@Composable
+private fun NetTile(color: Color, name: String, bytes: Long, share: Int, speed: Long?, modifier: Modifier) {
+    Column(modifier.clip(MaterialTheme.shapes.medium).background(color.copy(alpha = .10f)).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(color, 8.dp); Spacer(Modifier.width(6.dp))
-            Text(name, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(name, fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(Format.pct(share), fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
-        Text(Format.speed(speed), fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(Format.bytes(bytes), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(Format.bytes(bytes), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        if (speed != null) Text(Format.speed(speed), fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
+}
+
+/** Explains why a download cannot start/continue: names exactly which network is off. */
+@Composable
+fun NetBlockedDialog(code: String, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.WifiOff, null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text(stringResource(R.string.blocked_title), fontWeight = FontWeight.Bold) },
+        text = { Text(Texts.blocked(ctx, code)) },
+        confirmButton = {
+            androidx.compose.material3.TextButton({
+                runCatching {
+                    ctx.startActivity(
+                        android.content.Intent(android.provider.Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+                onDismiss()
+            }) { Text(stringResource(R.string.open_net_settings)) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onDismiss) { Text(stringResource(R.string.ok)) } }
+    )
 }

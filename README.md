@@ -45,3 +45,10 @@ Change `applicationId` (currently `com.example.netspeed`), add your own keystore
 - Downloads tab: filter chips, labelled Stop / Resume / Retry button on EVERY download, "Pause all" / "Resume all" only when relevant.
 - Usage and History filters open from one button (bottom sheet).
 - New modern theme, animated home screen, gradient navigation pill.
+
+## v2.3 changes
+- Downloads: exact Wi-Fi / mobile bytes (and share) per download, live while running.
+- History redesigned (grouped by day, per-file split bar); search, filter and "clear finished" appear only when there is history. Filter sheets open fully.
+- Start / resume / retry / resume-all show a clear message naming the network that is off.
+- Persian mode: all digits and units in Persian (کیلوبایت، مگابایت…), right-to-left notification, language follows live changes.
+- Speed numbers no longer animate; home screen simplified; new "New download" sheet.

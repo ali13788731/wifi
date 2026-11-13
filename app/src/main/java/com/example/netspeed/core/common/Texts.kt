@@ -13,7 +13,7 @@ object Texts {
             return when (n) {
                 "404", "410" -> ctx.getString(R.string.err_http_404)
                 "403" -> ctx.getString(R.string.err_http_403)
-                else -> ctx.getString(R.string.err_http, n)
+                else -> ctx.getString(R.string.err_http, Format.d(n))
             }
         }
         return ctx.getString(
@@ -35,6 +35,15 @@ object Texts {
             }
         )
     }
+
+    /** Message for "cannot start / continue because a network is off". */
+    fun blocked(ctx: Context, code: String?): String = ctx.getString(
+        when (code) {
+            "NO_WIFI" -> R.string.blocked_no_wifi
+            "NO_MOBILE" -> R.string.blocked_no_mobile
+            else -> R.string.blocked_no_both
+        }
+    )
 
     fun notice(ctx: Context, code: String?): String? = when (code) {
         "wifi_lost" -> R.string.notice_wifi_lost

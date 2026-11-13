@@ -16,7 +16,7 @@
     <string name="dl_filter_queued">در صف</string>
     <string name="dl_filter_paused">متوقف</string>
     <string name="dl_filter_failed">ناموفق</string>
-    <string name="dl_summary">%1$d دانلود • %2$d فعال</string>
+    <string name="dl_summary">%1$d دانلود</string>
     <string name="dl_empty_title">اینجا چیزی نیست</string>
     <string name="dl_empty_hint">دانلودهای فعال، در صف، متوقف‌شده و ناموفق در این فهرست دیده می‌شوند.</string>
     <string name="stop_download">توقف</string>

@@ -12,11 +12,11 @@
 
     <!-- downloads screen -->
     <string name="dl_filter_all">All</string>
-    <string name="dl_filter_active">Active</string>
+    <string name="dl_filter_active">Downloading</string>
     <string name="dl_filter_queued">Queued</string>
     <string name="dl_filter_paused">Paused</string>
     <string name="dl_filter_failed">Failed</string>
-    <string name="dl_summary">%1$d downloads • %2$d running</string>
+    <string name="dl_summary">%1$d downloads</string>
     <string name="dl_empty_title">Nothing here</string>
     <string name="dl_empty_hint">Downloads that are running, waiting, paused or failed show up in this list.</string>
     <string name="stop_download">Stop</string>

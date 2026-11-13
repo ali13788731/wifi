@@ -177,9 +177,9 @@ private fun Detail(vm: AppViewModel, key: String, onBack: () -> Unit, onLanguage
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     when (key) {
                         "downloads" -> {
-                            Text(stringResource(R.string.s_max_concurrent) + ": ${s.maxConcurrent}", fontSize = 14.sp)
+                            Text(stringResource(R.string.s_max_concurrent) + ": " + com.example.netspeed.core.common.Format.n(s.maxConcurrent), fontSize = 14.sp)
                             Slider(s.maxConcurrent.toFloat(), { v -> vm.set { setMaxConcurrent(v.toInt()) } }, valueRange = 1f..5f, steps = 3)
-                            Text(stringResource(R.string.s_connections) + ": ${s.connectionsPerNetwork}", fontSize = 14.sp)
+                            Text(stringResource(R.string.s_connections) + ": " + com.example.netspeed.core.common.Format.n(s.connectionsPerNetwork), fontSize = 14.sp)
                             Text(stringResource(R.string.s_connections_hint), fontSize = 12.sp, color = muted)
                             Slider(s.connectionsPerNetwork.toFloat(), { v -> vm.set { setConnections(v.toInt()) } }, valueRange = 1f..8f, steps = 6)
                             NumberField(R.string.s_speed_limit, s.speedLimitBps / (1024 * 1024)) { vm.set { setSpeedLimit(it * 1024 * 1024) } }
