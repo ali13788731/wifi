@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -215,7 +217,7 @@ class MainActivity : ComponentActivity() {
             if (vm.settingsRequest != null) { tab = 4; showDiag = false; showAdd = false }
         }
         // room for the floating bar INCLUDING the system navigation bar, so the last row is never hidden under it
-        val navInset = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         val open: (String) -> Unit = { p -> runCatching { startActivity(vm.storage.openIntent(p)) } }
         val share: (String) -> Unit = { p -> runCatching { startActivity(vm.storage.shareIntent(p)) } }
