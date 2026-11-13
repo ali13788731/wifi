@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.netspeed"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.6.0"
+        versionCode = 7
+        versionName = "2.6.1"
         // ---- Cafe Bazaar one-time purchase (see README "Selling on Cafe Bazaar") ----
         // The app is FREE. The purchase unlocks Pro (one non-consumable product). Debug builds are always Pro.
         val rsa = (project.findProperty("bazaarRsaKey") as String?) ?: System.getenv("BAZAAR_RSA_KEY") ?: ""
