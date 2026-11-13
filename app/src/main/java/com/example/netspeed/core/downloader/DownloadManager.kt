@@ -8,6 +8,8 @@ import com.example.netspeed.core.common.SettingsRepository
 import com.example.netspeed.core.database.DownloadDao
 import com.example.netspeed.core.database.DownloadEntity
 import com.example.netspeed.core.database.SegmentDao
+import com.example.netspeed.core.license.Entitlements
+import com.example.netspeed.core.license.ProState
 import com.example.netspeed.core.network.NetKind
 import com.example.netspeed.core.network.NetworkBindingManager
 import com.example.netspeed.core.network.NetworkManager
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,13 +58,17 @@ class DownloadManager @Inject constructor(
     private val dao: DownloadDao,
     private val segDao: SegmentDao,
     private val storage: StorageHelper,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val pro: ProState
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val jobs = ConcurrentHashMap<Long, Job>()
     private val stopReason = ConcurrentHashMap<Long, DownloadStatus>()
     private val pumpLock = Mutex()
     private val limiter = RateLimiter(0)
+    @Volatile private var allowSingle = true
+    /** Pro = Wi-Fi and mobile data together. Free = one network at a time (see [Entitlements]). */
+    @Volatile private var isPro = false
     private val mobileUsed = AtomicLong(0)
     private val names = ConcurrentHashMap<Long, String>()
     fun nameOf(id: Long): String? = names[id]
@@ -80,7 +87,11 @@ class DownloadManager @Inject constructor(
 
     init {
         net.startMonitoring()
-        scope.launch { settings.flow.collect { limiter.bytesPerSec = it.speedLimitBps } }
+        scope.launch {
+            combine(settings.flow, pro.isPro) { s, p -> p to Entitlements.limit(s, p) }.collect { (p, s) ->
+                isPro = p; limiter.bytesPerSec = s.speedLimitBps; allowSingle = s.allowSingleNetwork
+            }
+        }
         scope.launch {
             while (true) {
                 delay(1000)
@@ -91,6 +102,7 @@ class DownloadManager @Inject constructor(
         }
         scope.launch {
             while (true) {                       // scheduler + mobile-usage refresh
+                pro.isProNow()                   // offline grace period may have ended
                 refreshMobileUsed()
                 pump()
                 delay(15_000)
@@ -113,16 +125,19 @@ class DownloadManager @Inject constructor(
         val s = net.state.value
         val n = (s.wifi.takeIf { it.usable } ?: s.mobile.takeIf { it.usable })?.network
         val client: OkHttpClient = if (n != null) binding.clientFor(n) else OkHttpClient()
-        RangeProbe.probe(client, url, o)
+        RangeProbe.probe(client, url, Entitlements.limit(o, pro.isProNow()))
     }
 
     suspend fun add(
-        url: String, probe: ProbeResult, o: RequestOptions,
-        nameOverride: String? = null, scheduledAt: Long = 0, priority: Int = 0
+        url: String, probe: ProbeResult, requested: RequestOptions,
+        nameOverride: String? = null, requestedAt: Long = 0, priority: Int = 0
     ): Long {
+        val isProNow = pro.isProNow()
+        val o = Entitlements.limit(requested, isProNow)            // free: no custom headers / login
+        val scheduledAt = Entitlements.scheduledAt(requestedAt, isProNow)   // free: no scheduling
         // A link that cannot do HTTP Range cannot be downloaded over two networks: refuse it.
         if (!probe.canMultiPart) return -1
-        val s = settings.flow.first()
+        val s = Entitlements.limit(settings.flow.first(), isProNow)
         val name = Format.safeName(nameOverride ?: probe.fileName ?: "download.bin")
         val id = dao.insert(
             DownloadEntity(
@@ -142,9 +157,10 @@ class DownloadManager @Inject constructor(
 
     // ---------------------------------------------------------------- control
 
-    /** null when both Wi-Fi and mobile data are usable, else NO_WIFI / NO_MOBILE / NO_BOTH. */
+    /** null when downloading is possible (both networks up, or one if the user allowed it), else NO_WIFI / NO_MOBILE / NO_BOTH. */
     fun missingNetwork(): String? {
         val n = net.state.value
+        if (allowSingle && (n.wifi.usable || n.mobile.usable)) return null
         return when {
             !n.wifi.usable && !n.mobile.usable -> "NO_BOTH"
             !n.wifi.usable -> "NO_WIFI"
@@ -193,7 +209,8 @@ class DownloadManager @Inject constructor(
     // ---------------------------------------------------------------- scheduling
 
     suspend fun pump() = pumpLock.withLock {
-        val s = settings.flow.first()
+        isPro = pro.isProNow()
+        val s = Entitlements.limit(settings.flow.first(), isPro)
         var slots = s.maxConcurrent - jobs.size
         if (slots <= 0) return
         val now = System.currentTimeMillis()
@@ -219,7 +236,9 @@ class DownloadManager @Inject constructor(
                 dao.setStatus(e.id, "RUNNING")
                 val cfg = JobConfig(
                     connectionsPerNetwork = conns, limiter = limiter,
-                    mobileAllowed = { mobileLimit <= 0 || mobileUsed.get() < mobileLimit }
+                    mobileAllowed = { mobileLimit <= 0 || mobileUsed.get() < mobileLimit },
+                    allowSingle = { allowSingle },
+                    dual = { isPro }
                 )
                 val outcome = try {
                     DownloadJob(e, net, binding, dao, segDao, cfg, flow).run()

@@ -13,13 +13,28 @@ android {
         applicationId = "com.example.netspeed"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "2.2.0"
+        versionCode = 6
+        versionName = "2.6.0"
+        // ---- Cafe Bazaar one-time purchase (see README "Selling on Cafe Bazaar") ----
+        // The app is FREE. The purchase unlocks Pro (one non-consumable product). Debug builds are always Pro.
+        val rsa = (project.findProperty("bazaarRsaKey") as String?) ?: System.getenv("BAZAAR_RSA_KEY") ?: ""
+        val sku = (project.findProperty("bazaarSku") as String?) ?: "full_version"   // product id of "Pro" in the Bazaar panel
+        buildConfigField("String", "BAZAAR_RSA_KEY", "\"$rsa\"")
+        buildConfigField("String", "BAZAAR_SKU", "\"$sku\"")
+        // ---- "New version" notification: a small JSON file (see update.json in the repo root) ----
+        // Override with -PupdateUrl=... or env UPDATE_URL; empty string turns the check off.
+        val upd = (project.findProperty("updateUrl") as String?) ?: System.getenv("UPDATE_URL")
+            ?: "https://raw.githubusercontent.com/ali13788731/wifi/main/update.json"
+        buildConfigField("String", "UPDATE_URL", "\"$upd\"")
+        // Smaller APK: keep only the app's two languages from the libraries' resources
+        resourceConfigurations += listOf("en", "fa")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug { buildConfigField("boolean", "LICENSE_REQUIRED", "false") }
         release {
+            buildConfigField("boolean", "LICENSE_REQUIRED", "true")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -48,7 +63,7 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging { resources.excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/*.version", "DebugProbesKt.bin", "kotlin-tooling-metadata.json") }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -59,20 +74,19 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.github.cafebazaar.Poolakey:poolakey:2.2.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
-    implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     implementation("com.google.dagger:hilt-android:2.51.1")
     ksp("com.google.dagger:hilt-android-compiler:2.51.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

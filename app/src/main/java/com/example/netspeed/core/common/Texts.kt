@@ -31,6 +31,7 @@ object Texts {
                 "SAVE_FAILED" -> R.string.err_save
                 "SEGMENT_FAILED" -> R.string.err_segment
                 "MOBILE_LIMIT" -> R.string.err_mobile_limit
+                "DUPLICATE" -> R.string.err_duplicate
                 else -> R.string.err_unknown
             }
         )

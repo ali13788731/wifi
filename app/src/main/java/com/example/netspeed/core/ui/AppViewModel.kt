@@ -13,6 +13,7 @@ import com.example.netspeed.core.downloader.DownloadManager
 import com.example.netspeed.core.downloader.NetworkMode
 import com.example.netspeed.core.downloader.ProbeResult
 import com.example.netspeed.core.downloader.RequestOptions
+import com.example.netspeed.core.license.ProState
 import com.example.netspeed.core.network.NetworkManager
 import com.example.netspeed.core.storage.StorageHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,8 +36,12 @@ class AppViewModel @Inject constructor(
     val manager: DownloadManager,
     private val netManager: NetworkManager,
     private val settingsRepo: SettingsRepository,
-    val storage: StorageHelper
+    val storage: StorageHelper,
+    val pro: ProState
 ) : ViewModel() {
+
+    /** true = DualNet Pro is active (see [ProState]). */
+    val isPro: StateFlow<Boolean> = pro.isPro
 
     val settings: StateFlow<Settings> =
         settingsRepo.flow.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
@@ -52,6 +57,23 @@ class AppViewModel @Inject constructor(
     /** null when both networks are on; otherwise the code of what is missing (see Texts.blocked). */
     fun missingNetwork(): String? = manager.missingNetwork()
 
+    /** Set by dialogs/sheets that want to send the user to a settings page (e.g. "downloads"). */
+    var settingsRequest by mutableStateOf<String?>(null)
+
+    private fun norm(u: String) = u.trim().substringBefore('#').trimEnd('/')
+
+    /** True when this link is already in the list (finished ones count only while their file still exists). */
+    private fun isDuplicate(vararg urls: String): Boolean {
+        val set = urls.map { norm(it) }.toSet()
+        return downloads.value.any { e ->
+            (norm(e.url) in set || norm(e.finalUrl) in set) && when (e.status) {
+                "CANCELED" -> false
+                "COMPLETED" -> storage.exists(e.resultUri)
+                else -> true
+            }
+        }
+    }
+
     fun resetAdd() { addState = AddState.Idle }
 
     fun inspect(url: String, opts: RequestOptions) {
@@ -60,18 +82,15 @@ class AppViewModel @Inject constructor(
             u.length < 11 || u.contains(' ')) {
             addState = AddState.Error("INVALID_URL"); return
         }
-        // The app only works when Wi-Fi AND mobile data are both on: say exactly which one is missing.
-        val n = netManager.state.value
-        when {
-            !n.wifi.usable && !n.mobile.usable -> { addState = AddState.Error("NO_BOTH"); return }
-            !n.wifi.usable -> { addState = AddState.Error("NO_WIFI"); return }
-            !n.mobile.usable -> { addState = AddState.Error("NO_MOBILE"); return }
-        }
+        if (isDuplicate(u)) { addState = AddState.Error("DUPLICATE"); return }
+        // Needs Wi-Fi AND mobile data (or one of them if the user allowed it): say exactly what is missing.
+        manager.missingNetwork()?.let { addState = AddState.Error(it); return }
         addState = AddState.Checking
         viewModelScope.launch {
             val p = manager.inspect(u, opts)
             addState = when {
                 p.authRequired -> AddState.Error("AUTH")
+                isDuplicate(u, p.finalUrl) -> AddState.Error("DUPLICATE")
                 // No verified HTTP Range = no dual-network download = the app refuses the link.
                 !p.canMultiPart -> AddState.Error(if (p.code == "OK") "RANGE_UNSUPPORTED" else p.code)
                 else -> AddState.Ready(u, p, opts)
@@ -80,14 +99,16 @@ class AppViewModel @Inject constructor(
     }
 
     /** Only called after the user explicitly confirmed in the add sheet. */
-    fun confirmAdd(r: AddState.Ready, name: String, delayMs: Long) {
+    fun confirmAdd(r: AddState.Ready, name: String, delayMs: Long): Boolean {
+        if (isDuplicate(r.url, r.probe.finalUrl)) { addState = AddState.Error("DUPLICATE"); return false }
         viewModelScope.launch {
             manager.add(
                 r.url, r.probe, r.opts, nameOverride = name.ifBlank { null },
-                scheduledAt = if (delayMs > 0) System.currentTimeMillis() + delayMs else 0
+                requestedAt = if (delayMs > 0) System.currentTimeMillis() + delayMs else 0
             )
             addState = AddState.Idle
         }
+        return true
     }
 
     /**

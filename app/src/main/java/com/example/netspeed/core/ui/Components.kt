@@ -378,25 +378,32 @@ private fun NetTile(color: Color, name: String, bytes: Long, share: Int, speed: 
     }
 }
 
-/** Explains why a download cannot start/continue: names exactly which network is off. */
+/**
+ * Explains why a download cannot start/continue: names exactly which network is off. The button
+ * on the side opens the setting that lets the user download with only one network.
+ */
 @Composable
-fun NetBlockedDialog(code: String, onDismiss: () -> Unit) {
+fun NetBlockedDialog(code: String, onSettings: () -> Unit, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.WifiOff, null, tint = MaterialTheme.colorScheme.error) },
         title = { Text(stringResource(R.string.blocked_title), fontWeight = FontWeight.Bold) },
-        text = { Text(Texts.blocked(ctx, code)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(Texts.blocked(ctx, code))
+                androidx.compose.material3.OutlinedButton({
+                    runCatching {
+                        ctx.startActivity(
+                            android.content.Intent(android.provider.Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.open_net_settings)) }
+            }
+        },
         confirmButton = {
-            androidx.compose.material3.TextButton({
-                runCatching {
-                    ctx.startActivity(
-                        android.content.Intent(android.provider.Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }
-                onDismiss()
-            }) { Text(stringResource(R.string.open_net_settings)) }
+            androidx.compose.material3.Button({ onDismiss(); onSettings() }) { Text(stringResource(R.string.blocked_settings)) }
         },
         dismissButton = { androidx.compose.material3.TextButton(onDismiss) { Text(stringResource(R.string.ok)) } }
     )

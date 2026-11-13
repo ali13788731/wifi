@@ -7,7 +7,7 @@
     <string name="blocked_title">Can\'t continue the download</string>
     <string name="blocked_no_wifi">The download can\'t continue because Wi-Fi is off. Turn Wi-Fi on and connect, then try again.</string>
     <string name="blocked_no_mobile">The download can\'t continue because mobile data is off. Turn mobile data on, then try again.</string>
-    <string name="blocked_no_both">The download can\'t continue because both Wi-Fi and mobile data are off. Turn both on, then try again.</string>
+    <string name="blocked_no_both">The download can\'t continue because both Wi-Fi and mobile data are off. Turn on Wi-Fi or mobile data, then try again.</string>
 
     <!-- add download sheet -->
     <string name="add_subtitle">Paste a link — it downloads through Wi-Fi and mobile data together.</string>

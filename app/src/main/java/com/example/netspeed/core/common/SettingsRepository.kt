@@ -29,7 +29,9 @@ data class Settings(
     val saveTree: String? = null,                // SAF tree uri
     val overwrite: Boolean = false,
     val statusBarSpeed: Boolean = true,          // live speed icon in the status bar
-    val clipboardDetect: Boolean = true
+    val clipboardDetect: Boolean = true,
+    /** false (default): downloads need BOTH Wi-Fi and mobile data. true: one network is enough. */
+    val allowSingleNetwork: Boolean = false
 )
 
 @Singleton
@@ -48,6 +50,7 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val ctx
         val overwrite = booleanPreferencesKey("overwrite")
         val sbSpeed = booleanPreferencesKey("sbSpeed")
         val clip = booleanPreferencesKey("clip")
+        val single = booleanPreferencesKey("singleNet")
     }
 
     val flow: Flow<Settings> = ctx.store.data.map { p ->
@@ -57,7 +60,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val ctx
             p[K.speed] ?: d.speedLimitBps, p[K.mobLimit] ?: d.mobileLimitBytes,
             p[K.mobWarn] ?: d.mobileWarning, p[K.retry] ?: d.autoRetry, p[K.theme] ?: d.theme,
             p[K.lang] ?: d.language, p[K.tree], p[K.overwrite] ?: d.overwrite,
-            p[K.sbSpeed] ?: d.statusBarSpeed, p[K.clip] ?: d.clipboardDetect
+            p[K.sbSpeed] ?: d.statusBarSpeed, p[K.clip] ?: d.clipboardDetect,
+            p[K.single] ?: d.allowSingleNetwork
         )
     }
 
@@ -78,4 +82,5 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val ctx
     suspend fun setOverwrite(v: Boolean) = edit { it[K.overwrite] = v }
     suspend fun setStatusBarSpeed(v: Boolean) = edit { it[K.sbSpeed] = v }
     suspend fun setClipboard(v: Boolean) = edit { it[K.clip] = v }
+    suspend fun setAllowSingle(v: Boolean) = edit { it[K.single] = v }
 }

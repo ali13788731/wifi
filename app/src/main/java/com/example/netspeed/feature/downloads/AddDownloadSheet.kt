@@ -46,7 +46,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -78,7 +80,14 @@ import com.example.netspeed.core.ui.Brand
 import com.example.netspeed.core.ui.IconTile
 import com.example.netspeed.core.ui.LocalNetColors
 import com.example.netspeed.core.ui.NetBlockedDialog
+import com.example.netspeed.core.ui.ProBadge
+import com.example.netspeed.core.ui.ProDialog
 import com.example.netspeed.core.ui.SoftCard
+import com.example.netspeed.core.ui.ToolbarField
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.delay
 import com.example.netspeed.core.ui.categoryIcon
 
 /**
@@ -103,6 +112,13 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
     var name by remember { mutableStateOf("") }
     var delayMs by remember { mutableLongStateOf(0L) }
     var blocked by remember { mutableStateOf<String?>(null) }
+    val openedAt = remember { System.currentTimeMillis() }
+    var resumes by remember { mutableIntStateOf(0) }
+    val allowSingle by vm.settings.collectAsState()
+    val isPro by vm.isPro.collectAsState()
+    var proReason by remember { mutableStateOf<Int?>(null) }
+    // Free: one network is always enough. Pro: both, unless the user allowed single-network mode.
+    val single = !isPro || allowSingle.allowSingleNetwork
 
     fun opts() = RequestOptions(
         userAgent = ua.ifBlank { RequestOptions.DEFAULT_UA },
@@ -113,6 +129,37 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
     LaunchedEffect(Unit) {
         vm.resetAdd()
         if (autoCheck && !initialUrl.isNullOrBlank()) vm.inspect(initialUrl, opts())
+    }
+    // A different link arrived while the sheet is open (copied in another app / shared in).
+    LaunchedEffect(initialUrl) {
+        if (!initialUrl.isNullOrBlank() && initialUrl != url) {
+            url = initialUrl; vm.resetAdd()
+            if (autoCheck) vm.inspect(initialUrl, opts())
+        }
+    }
+    // The user went to the browser, copied a link and came back: paste it by itself.
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) resumes++ }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    LaunchedEffect(resumes) {
+        if (resumes == 0) return@LaunchedEffect
+        // Android lets an app read the clipboard only once its window has focus: try a few times.
+        repeat(5) {
+            delay(450)
+            val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+            val stamp = runCatching { cm?.primaryClipDescription?.timestamp ?: 0L }.getOrDefault(0L)
+            val link = runCatching {
+                LinkDetector.extract(cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString())
+            }.getOrNull()
+            if (link != null && stamp > openedAt && link != url) {
+                url = link; vm.resetAdd(); vm.inspect(link, opts())
+                return@LaunchedEffect
+            }
+            if (link != null && stamp > 0) return@LaunchedEffect   // focus is there, nothing new to paste
+        }
     }
     LaunchedEffect(state) { if (state is AddState.Ready) name = state.probe.fileName ?: "" }
 
@@ -134,18 +181,22 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.add_download), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-                    Text(stringResource(R.string.add_subtitle), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(if (isPro) R.string.add_subtitle else R.string.add_subtitle_free), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
             // ---- both networks must be on: show each one's state
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NetStatus(Icons.Rounded.Wifi, stringResource(R.string.wifi), net.wifi.usable, Modifier.weight(1f))
-                NetStatus(Icons.Rounded.SignalCellularAlt, stringResource(R.string.mobile), net.mobile.usable, Modifier.weight(1f))
+                NetStatus(Icons.Rounded.Wifi, stringResource(R.string.wifi), net.wifi.usable, single, Modifier.weight(1f))
+                NetStatus(Icons.Rounded.SignalCellularAlt, stringResource(R.string.mobile), net.mobile.usable, single, Modifier.weight(1f))
+            }
+            // One network is off and single-network mode is not allowed yet: offer the setting right here.
+            if (isPro && vm.missingNetwork() != null) TextButton({ vm.settingsRequest = "downloads"; onDismiss() }) {
+                Text(stringResource(R.string.single_hint_btn))
             }
 
             // ---- link
-            OutlinedTextField(
+            ToolbarField { OutlinedTextField(
                 url, { url = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.url)) },
                 singleLine = true, enabled = state !is AddState.Checking,
                 shape = MaterialTheme.shapes.large,
@@ -156,22 +207,23 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
                         LinkDetector.extract(clipboard.getText()?.text)?.let { url = it; vm.resetAdd() }
                     }) { Icon(Icons.Rounded.ContentPaste, stringResource(R.string.paste)) }
                 }
-            )
+            ) }
 
             // ---- advanced options (collapsible)
             SoftCard {
                 Column(Modifier.animateContentSize()) {
                     Row(
-                        Modifier.fillMaxWidth().clickable { advanced = !advanced }.padding(14.dp),
+                        Modifier.fillMaxWidth().clickable { if (isPro) advanced = !advanced else proReason = R.string.pro_why_advanced }.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Rounded.Tune, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(10.dp))
                         Text(stringResource(R.string.advanced), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        if (!isPro) { ProBadge(); Spacer(Modifier.width(8.dp)) }
                         Icon(if (advanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    AnimatedVisibility(advanced) {
+                    AnimatedVisibility(advanced && isPro) {
                         Column(Modifier.padding(14.dp, 0.dp, 14.dp, 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedTextField(ua, { ua = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.user_agent)) }, shape = MaterialTheme.shapes.medium)
                             OutlinedTextField(referer, { referer = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.referer)) }, shape = MaterialTheme.shapes.medium)
@@ -215,8 +267,8 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
                                 Text(Format.bytes(state.probe.totalBytes), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                             }
                         }
-                        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.file_name)) },
-                            shape = MaterialTheme.shapes.medium)
+                        ToolbarField { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.file_name)) },
+                            shape = MaterialTheme.shapes.medium) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.CheckCircle, null, tint = LocalNetColors.current.ok, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
@@ -226,10 +278,13 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
                             Icon(Icons.Rounded.Schedule, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.start_when), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            if (!isPro) { Spacer(Modifier.width(8.dp)); ProBadge() }
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(0L, 15L, 60L, 180L, 480L).forEach { min ->
-                                FilterChip(delayMs == min * 60_000L, { delayMs = min * 60_000L }, {
+                                FilterChip(delayMs == min * 60_000L, {
+                                    if (min > 0 && !isPro) proReason = R.string.pro_why_schedule else delayMs = min * 60_000L
+                                }, {
                                     Text(
                                         when {
                                             min == 0L -> stringResource(R.string.start_now)
@@ -264,20 +319,21 @@ fun AddDownloadSheet(vm: AppViewModel, initialUrl: String?, autoCheck: Boolean, 
                     // Starting needs BOTH networks: say exactly which one is off instead of doing nothing.
                     val missing = vm.missingNetwork()
                     if (missing != null) blocked = missing
-                    else { vm.confirmAdd(ready, name, delayMs); onDismiss() }
+                    else if (vm.confirmAdd(ready, name, delayMs)) onDismiss()
                 }
             }
             TextButton({ vm.resetAdd(); onDismiss() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.cancel)) }
         }
     }
 
-    blocked?.let { NetBlockedDialog(it) { blocked = null } }
+    blocked?.let { NetBlockedDialog(it, { vm.settingsRequest = "downloads"; onDismiss() }) { blocked = null } }
+    if (proReason != null && !isPro) ProDialog(proReason) { proReason = null }
 }
 
 @Composable
-private fun NetStatus(icon: ImageVector, label: String, on: Boolean, modifier: Modifier) {
+private fun NetStatus(icon: ImageVector, label: String, on: Boolean, optional: Boolean, modifier: Modifier) {
     val c = LocalNetColors.current
-    val color = if (on) c.ok else MaterialTheme.colorScheme.error
+    val color = if (on) c.ok else if (optional) c.warn else MaterialTheme.colorScheme.error
     Row(
         modifier.clip(MaterialTheme.shapes.medium).background(color.copy(alpha = .12f)).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically

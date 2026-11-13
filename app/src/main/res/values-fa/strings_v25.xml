@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ch_promo">یادآوری نسخه‌ی پرو</string>
+    <string name="ch_update">به‌روزرسانی برنامه</string>
+    <string name="promo_title">دوال‌نت پرو را فعال کنید</string>
+    <string name="promo_short">دانلود هم‌زمان با وای‌فای و دیتای موبایل — فقط یک‌بار پرداخت.</string>
+    <string name="promo_big">یک‌بار خرید، برای همیشه. امکانات پرو:\n• دانلود هر فایل هم‌زمان با وای‌فای و دیتای موبایل (سرعتِ جمعِ هر دو)\n• محدودکننده‌ی سرعت و سقف ماهانه‌ی دیتا همراه با هشدار\n• زمان‌بندی دانلود\n• User-Agent، Referer، کوکی و ورود با نام‌کاربری\n• آمار مصرف هر شبکه\n• تا ۵ دانلود هم‌زمان و ۸ اتصال\n\nبرای خرید با حساب کافه‌بازار خودتان لمس کنید.</string>
+    <string name="upd_title">نسخه‌ی %1$s آماده‌ی به‌روزرسانی است</string>
+    <string name="upd_action">به‌روزرسانی</string>
+    <string name="upd_no_notes">نسخه‌ی جدید دوال‌نت آماده است. برای به‌روزرسانی لمس کنید.</string>
+</resources>

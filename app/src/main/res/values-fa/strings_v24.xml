@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="err_duplicate">این دانلود تکراری است؛ همین لینک قبلاً در دانلودها یا تاریخچه وجود دارد.</string>
+    <string name="blocked_settings">تنظیمات دانلود با یک شبکه</string>
+    <string name="s_single">اجازه‌ی دانلود فقط با یک شبکه</string>
+    <string name="s_single_hint">ویژه‌ی پرو. به‌طور پیش‌فرض دانلودِ پرو فقط وقتی شروع می‌شود که هم وای‌فای و هم دیتای موبایل روشن باشند. با روشن کردن این گزینه، اگر یکی خاموش بود، دانلود با شبکه‌ی روشن انجام می‌شود (شبکه‌ی دیگر استفاده نمی‌شود).</string>
+    <string name="single_mode_active">فقط یک شبکه روشن است — دانلود با همان انجام می‌شود (حالت تک‌شبکه)</string>
+    <string name="single_hint_btn">دانلود با یک شبکه…</string>
+    <string name="tb_cut">برش</string>
+    <string name="tb_copy">کپی</string>
+    <string name="tb_paste">چسباندن</string>
+    <string name="tb_select_all">انتخاب همه</string>
+    <string name="lic_title">ارتقا به پرو</string>
+    <string name="lic_body">نسخه‌ی پرو یک‌بار خرید با حساب کافه‌بازار شماست.</string>
+    <string name="lic_buy">خرید نسخه‌ی پرو</string>
+    <string name="lic_recheck">قبلاً خریده‌ام — بررسی دوباره</string>
+    <string name="lic_checking">در حال بررسی خرید شما…</string>
+    <string name="lic_no_bazaar">کافه‌بازار نصب نیست یا وارد حساب نشده‌اید. آن را نصب کنید، وارد شوید و دوباره امتحان کنید.</string>
+    <string name="lic_failed">بررسی خرید ممکن نشد. اینترنت را بررسی کنید و دوباره امتحان کنید.</string>
+    <string name="lic_install_bazaar">دریافت کافه‌بازار</string>
+</resources>

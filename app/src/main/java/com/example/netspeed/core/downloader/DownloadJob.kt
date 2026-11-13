@@ -33,7 +33,11 @@ class JobConfig(
     val maxSegmentRetries: Int = 8,
     val limiter: RateLimiter = RateLimiter(0),
     /** Extra policy gate for mobile data (monthly limit). Evaluated continuously. */
-    val mobileAllowed: () -> Boolean = { true }
+    val mobileAllowed: () -> Boolean = { true },
+    /** User allowed downloading with only one network (Settings). */
+    val allowSingle: () -> Boolean = { false },
+    /** Pro: Wi-Fi and mobile data work on the same file together. Free: only one network is used at a time. */
+    val dual: () -> Boolean = { true }
 )
 
 /** Error codes. The UI turns them into precise Persian/English text. */
@@ -101,15 +105,29 @@ class DownloadJob(
     private val startedAt = System.currentTimeMillis()
 
     private fun usable(kind: NetKind) = net.state.value[kind].usable
+    /** Both networks up, or (when the user allowed it) at least one. */
+    private fun ready(): Boolean {
+        val w = usable(NetKind.WIFI); val m = usable(NetKind.MOBILE)
+        return (w && m) || (cfg.allowSingle() && (w || m))
+    }
     private fun allowed(kind: NetKind) = kind == NetKind.WIFI || cfg.mobileAllowed()
+
+    /**
+     * Free version: exactly one network downloads at a time, Wi-Fi first. If Wi-Fi drops the mobile
+     * workers take over automatically (segments go back to the queue); when Wi-Fi returns it takes over again.
+     */
+    private fun activeInFreeMode(kind: NetKind): Boolean {
+        val wifiUp = usable(NetKind.WIFI)
+        return if (kind == NetKind.WIFI) wifiUp else !wifiUp
+    }
 
     /** Localizable hint about what is wrong right now (null = everything fine). */
     private fun notice(): String? {
         val w = usable(NetKind.WIFI); val m = usable(NetKind.MOBILE)
         return when {
             !w && !m -> "waiting_both"
-            !w -> "wifi_lost"
-            !m -> "mobile_lost"
+            !w -> if (cfg.allowSingle()) null else "wifi_lost"
+            !m -> if (cfg.allowSingle()) null else "mobile_lost"
             !cfg.mobileAllowed() -> "mobile_limit"
             else -> null
         }
@@ -132,7 +150,7 @@ class DownloadJob(
         if (!cfg.mobileAllowed()) return JobOutcome.Failed(Err.MOBILE_LIMIT)
 
         // ---- dual mode needs BOTH networks: wait (and tell the user exactly which one is missing) ----
-        while (!(usable(NetKind.WIFI) && usable(NetKind.MOBILE))) {
+        while (!ready()) {
             currentCoroutineContext().job.ensureActive()
             val notice = when {
                 !usable(NetKind.WIFI) && !usable(NetKind.MOBILE) -> "waiting_both"
@@ -143,7 +161,8 @@ class DownloadJob(
             delay(1000)
         }
         publish(DownloadStatus.PROBING, d.totalBytes, d.doneBytes, "checking")
-        val client = binding.clientFor(net.state.value.wifi.network!!)
+        val first = net.state.value.let { if (it.wifi.usable) it.wifi else it.mobile }
+        val client = binding.clientFor(first.network!!)
         val probe = withContext(Dispatchers.IO) { RangeProbe.probe(client, d.url, opts) }
         if (probe.authRequired) return JobOutcome.Failed(Err.AUTH)
         if (!probe.canMultiPart) {
@@ -242,6 +261,7 @@ class DownloadJob(
             val st = net.state.value[kind]
             // A disconnected / disallowed network gets no new segments; it resumes by itself on return.
             if (!st.usable || !allowed(kind)) { failures = 0; delay(500); continue }
+            if (!cfg.dual() && !activeInFreeMode(kind)) { failures = 0; delay(500); continue }   // free: other network waits
             val seg = queue.take()
             if (seg == null) { delay(200); continue }
             assigned.getValue(kind).add(seg.e.index)

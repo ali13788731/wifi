@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ch_promo">Pro reminders</string>
+    <string name="ch_update">App updates</string>
+    <string name="promo_title">Go Pro with DualNet</string>
+    <string name="promo_short">Download with Wi-Fi and mobile data at the same time — one-time purchase.</string>
+    <string name="promo_big">One-time purchase, yours for good. Pro gives you:\n• Download one file through Wi-Fi AND mobile data at once (the speed of both)\n• Speed limiter and a monthly mobile-data cap with a warning\n• Scheduled downloads\n• Custom User-Agent, Referer, cookies and login\n• Usage statistics per network\n• Up to 5 parallel downloads and 8 connections\n\nTap to buy it with your Cafe Bazaar account.</string>
+    <string name="upd_title">New version %1$s is available</string>
+    <string name="upd_action">Update</string>
+    <string name="upd_no_notes">A new version of DualNet is ready. Tap to update.</string>
+</resources>

@@ -162,7 +162,7 @@ fun DownloadsScreen(vm: AppViewModel, onOpenFile: (String) -> Unit, onShare: (St
         }
     }
 
-    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it) { blocked = null } }
+    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it, { vm.settingsRequest = "downloads" }) { blocked = null } }
 
     toDelete?.let { e ->
         var alsoFile by remember { mutableStateOf(false) }

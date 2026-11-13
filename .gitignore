@@ -8,3 +8,9 @@
 /captures/
 .externalNativeBuild/
 .cxx/
+
+# Signing keys: NEVER commit
+*.jks
+*.keystore
+keystore-base64.txt
+github-secrets.txt

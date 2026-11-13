@@ -127,6 +127,9 @@ class DownloadService : Service() {
         }
     }
 
+    /** Persian lines start with an RTL mark so every notification line is laid out right-to-left. */
+    private fun rl(t: String) = if (Format.persian) "\u200F" + t else t
+
     private fun pi(action: String, code: Int) = PendingIntent.getService(
         this, code, Intent(this, DownloadService::class.java).setAction(action),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -151,8 +154,8 @@ class DownloadService : Service() {
     /** Notification while nothing is downloading: device-wide Wi-Fi / mobile speed. */
     private fun idle(wifi: Long, mobile: Long, icon: Boolean): Notification =
         base(wifi, mobile, icon)
-            .setContentTitle(lctx.getString(R.string.notif_idle))
-            .setContentText(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile)))
+            .setContentTitle(rl(lctx.getString(R.string.notif_idle)))
+            .setContentText(rl(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile))))
             .addAction(0, lctx.getString(R.string.resume_all), pi(ACTION_RESUME_ALL, 3))
             .build()
 
@@ -178,28 +181,28 @@ class DownloadService : Service() {
         // Persian gets its own right-to-left layouts (the system layout direction follows the phone, not the app)
         val rtl = Format.persian
         val small = RemoteViews(packageName, if (rtl) R.layout.notif_small_rtl else R.layout.notif_small).apply {
-            setTextViewText(R.id.n_title, title)
+            setTextViewText(R.id.n_title, rl(title))
             setProgressBar(R.id.n_bar, 100, pct, total <= 0)
             setTextViewText(R.id.n_pct, pctText)
-            setTextViewText(R.id.n_speeds, notice
-                ?: (lctx.getString(R.string.wifi) + " " + Format.speed(wifi) + "  |  " + lctx.getString(R.string.mobile) + " " + Format.speed(mobile)))
+            setTextViewText(R.id.n_speeds, rl(notice
+                ?: (lctx.getString(R.string.wifi) + " " + Format.speed(wifi) + "  |  " + lctx.getString(R.string.mobile) + " " + Format.speed(mobile))))
         }
         val big = RemoteViews(packageName, if (rtl) R.layout.notif_big_rtl else R.layout.notif_big).apply {
-            setTextViewText(R.id.n_title, title)
+            setTextViewText(R.id.n_title, rl(title))
             setProgressBar(R.id.n_bar, 100, pct, total <= 0)
             setTextViewText(R.id.n_pct, pctText)
-            setTextViewText(R.id.n_remain, notice
+            setTextViewText(R.id.n_remain, rl(notice
                 ?: (lctx.getString(R.string.remaining) + " " + Format.bytes((total - done).coerceAtLeast(0)) +
-                    "  •  " + lctx.getString(R.string.eta) + " " + Format.eta(eta)))
-            setTextViewText(R.id.n_wifi, wifiLine)
-            setTextViewText(R.id.n_mobile, mobLine)
-            setTextViewText(R.id.n_total, lctx.getString(R.string.notif_total, Format.speed(speed)))
+                    "  •  " + lctx.getString(R.string.eta) + " " + Format.eta(eta))))
+            setTextViewText(R.id.n_wifi, rl(wifiLine))
+            setTextViewText(R.id.n_mobile, rl(mobLine))
+            setTextViewText(R.id.n_total, rl(lctx.getString(R.string.notif_total, Format.speed(speed))))
             setTextColor(R.id.n_wifi, 0xFF2F80FF.toInt())
             setTextColor(R.id.n_mobile, 0xFFFF8A3D.toInt())
         }
         return base(wifi, mobile, icon)
             .setContentTitle(title)
-            .setContentText(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile)))
+            .setContentText(rl(lctx.getString(R.string.notif_split, Format.speed(wifi), Format.speed(mobile))))
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(small)
             .setCustomBigContentView(big)
@@ -216,41 +219,43 @@ class DownloadService : Service() {
         } else Texts.error(lctx, code)
         val n = NotificationCompat.Builder(this, CH_DONE)
             .setSmallIcon(if (ok) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
-            .setContentTitle(lctx.getString(if (ok) R.string.notif_done else R.string.notif_failed) + ": " + name)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentTitle(rl(lctx.getString(if (ok) R.string.notif_done else R.string.notif_failed) + ": " + name))
+            .setContentText(rl(text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(rl(text)))
             .setColor(0xFF0B5FFF.toInt())
             .setAutoCancel(true).setContentIntent(openApp()).build()
         getSystemService(NotificationManager::class.java).notify(1000 + id.toInt(), n)
     }
 
     /**
-     * Status-bar icon drawn like a fraction: Wi-Fi speed on top, a divider line in the middle,
-     * mobile speed below. Each number carries its unit letter (K = KB/s, M = MB/s, G = GB/s,
-     * T = TB/s) and is drawn as large as the icon allows, so it stays readable at 24 dp.
+     * Status-bar icon: Wi-Fi speed on the LEFT, mobile speed on the RIGHT, a thin vertical divider
+     * between them. Wide (not square) so each number can be drawn big; both numbers carry their
+     * unit letter (K / M / G / T, or ک / م / گ / ت in Persian).
      */
     private fun speedIcon(wifi: Long, mobile: Long): Bitmap {
-        val size = 96
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val h = 96; val w = 192
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE; textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        // Draws [text] on one line, condensing it horizontally (never shrinking its height) to fit.
-        fun line(text: String, baseline: Float) {
-            p.textSize = 46f
+        val half = w / 2f
+        // Draws [text] centred in one half: as tall as possible, condensed horizontally to fit.
+        fun cell(text: String, cx: Float) {
+            p.textSize = 72f
             p.textScaleX = 1f
-            val w = p.measureText(text)
-            val maxW = size - 2f
-            if (w > maxW) p.textScaleX = maxW / w
-            c.drawText(text, size / 2f, baseline, p)
+            val tw = p.measureText(text)
+            val maxW = half - 10f
+            if (tw > maxW) p.textScaleX = maxW / tw
+            val fm = p.fontMetrics
+            val base = h / 2f - (fm.ascent + fm.descent) / 2f
+            c.drawText(text, cx, base, p)
         }
-        line(Format.iconSpeed(wifi), 41f)
-        line(Format.iconSpeed(mobile), 92f)
-        // the "division" line between the two numbers
+        cell(Format.iconSpeed(wifi), half / 2f)
+        cell(Format.iconSpeed(mobile), half + half / 2f)
         val bar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        c.drawRoundRect(RectF(6f, 46f, size - 6f, 51f), 2.5f, 2.5f, bar)
+        c.drawRoundRect(RectF(half - 2.5f, 8f, half + 2.5f, h - 8f), 2.5f, 2.5f, bar)
         return bmp
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Link
@@ -95,6 +96,8 @@ fun HomeScreen(
     val downloads by vm.downloads.collectAsState()
     val live by vm.live.collectAsState()
     val net by vm.net.collectAsState()
+    val isPro by vm.isPro.collectAsState()
+    var showPro by remember { mutableStateOf(false) }
     val history by vm.speedHistory.collectAsState()
     val running = live.values.filter { it.status.name == "RUNNING" }
     val active = downloads.filter { it.status in setOf("RUNNING", "PROBING", "VERIFYING") }
@@ -105,7 +108,8 @@ fun HomeScreen(
     var blocked by remember { mutableStateOf<String?>(null) }
     val guard: (() -> Unit) -> Unit = { action -> vm.missingNetwork()?.let { blocked = it } ?: action() }
 
-    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it) { blocked = null } }
+    blocked?.let { com.example.netspeed.core.ui.NetBlockedDialog(it, { vm.settingsRequest = "downloads" }) { blocked = null } }
+    if (showPro && !isPro) com.example.netspeed.core.ui.ProDialog(R.string.pro_why_dual) { showPro = false }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -175,10 +179,10 @@ fun HomeScreen(
                 }
             }
 
-            // ---- both networks must be on
+            // ---- Pro: both networks together (free: explains the one-network limit and offers the upgrade)
             item {
                 Reveal(3) {
-                    SoftCard {
+                    if (!isPro) FreeModeCard { showPro = true } else SoftCard {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 PulseDot(net.dualReady, if (net.dualReady) c.ok else c.warn)
@@ -188,7 +192,10 @@ fun HomeScreen(
                                     fontWeight = FontWeight.SemiBold, fontSize = 14.sp
                                 )
                             }
-                            if (!net.dualReady) {
+                            if (vm.missingNetwork() == null && !net.dualReady) {
+                                Text(stringResource(R.string.single_mode_active), fontSize = 12.sp,
+                                    color = c.warn, modifier = Modifier.padding(top = 6.dp))
+                            } else if (!net.dualReady) {
                                 val code = when {
                                     !net.wifi.usable && !net.mobile.usable -> "NO_BOTH"
                                     !net.wifi.usable -> "NO_WIFI"
@@ -221,15 +228,6 @@ fun HomeScreen(
                 }
             }
 
-            if (active.isEmpty()) {
-                item {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconTile(Icons.Rounded.CloudDownload, MaterialTheme.colorScheme.primary, 64.dp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(stringResource(R.string.no_downloads), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                }
-            }
             items(active, key = { it.id }) { e ->
                 DownloadCard(
                     e, live[e.id],
@@ -280,6 +278,23 @@ private fun NetCard(
             Spacer(Modifier.height(6.dp))
             SpeedChart(history, color)
             s.ssid?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+/** Free version: one network at a time. Tapping opens the Pro dialog. */
+@Composable
+private fun FreeModeCard(onClick: () -> Unit) {
+    SoftCard {
+        Column(Modifier.clickable(onClick = onClick).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Star, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.pro_home_title), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                com.example.netspeed.core.ui.ProBadge()
+            }
+            Text(stringResource(R.string.pro_home_body), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

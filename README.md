@@ -52,3 +52,48 @@ Change `applicationId` (currently `com.example.netspeed`), add your own keystore
 - Start / resume / retry / resume-all show a clear message naming the network that is off.
 - Persian mode: all digits and units in Persian (کیلوبایت، مگابایت…), right-to-left notification, language follows live changes.
 - Speed numbers no longer animate; home screen simplified; new "New download" sheet.
+
+## v2.4 changes
+- Downloads can use ONE network if you tick Settings > Downloads > "Allow downloading with only one network" (default: both required; the "network is off" dialog has a button that opens this setting).
+- Duplicate links are refused ("this download is a duplicate").
+- The "New download" sheet pastes a link you copied in the browser as soon as you come back; long-press menu (Cut/Copy/Paste/Select all) works in the link field.
+- Status-bar speed icon is wide: Wi-Fi left, mobile right, bigger digits.
+- Home: empty state removed; bottom bar no longer overlaps the last list row.
+- Cafe Bazaar one-time purchase gate (release builds).
+
+## Selling on Cafe Bazaar (300,000 toman, not shareable)
+Plain "paid app" listings do not stop sharing: the APK works on any phone. This project uses a free listing + ONE non-consumable in-app product (Poolakey). Ownership is checked against the Bazaar account signed in on the phone, so a copy sent to a friend asks them to buy it.
+1. Bazaar developer panel: publish the app, create an in-app product (non-consumable/permanent), e.g. id `full_version`, price 300,000 toman. Copy the app's RSA public key from the panel.
+2. Build the release with your values:
+   `gradle assembleRelease -PbazaarRsaKey="<RSA_KEY>" -PbazaarSku=full_version` (or env `BAZAAR_RSA_KEY`), signed with your own keystore.
+3. Release builds require the purchase; debug builds skip it. A purchase is cached for 7 days for offline use and refreshed whenever Bazaar is reachable (a refund removes access).
+Limit: no client-side check is crack-proof; R8 is on, but a determined cracker can patch the APK.
+
+## v2.5 changes
+- **Purchase reminder notification**: if Cafe Bazaar confirms the account has NOT bought the full version, a notification lists what the full version gives (once a day, at most 5 times; stops the moment it is bought). Android 13+: the notification permission is asked on the purchase screen.
+- **New-version notification with release notes**: the app (also in the background, every 12 h, and when opened) reads `update.json` from this repo (`UPDATE_URL`, override with `-PupdateUrl=...`, empty = off). When `versionCode` there is higher than the installed one, one notification per version shows the notes (fa/en) and opens the `url` (your Bazaar page).
+  To announce a release: bump `versionCode`/`versionName` in `app/build.gradle.kts`, then edit `update.json` (same numbers + notes) and push to `main` AFTER the new version is live on Bazaar.
+
+## Signing the release APK on GitHub
+Repo > Settings > Secrets and variables > Actions > New repository secret:
+`KEYSTORE_BASE64` (base64 of the .jks), `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `BAZAAR_RSA_KEY`.
+The workflow decodes the keystore on the runner and signs `app-release.apk`; the log prints its SHA-256 fingerprint. Keep a backup of the .jks: the same key is needed for every future update.
+
+## v2.6 — Free + Pro
+The app is **free** and never shows a purchase wall. **Pro** is one non-consumable Cafe Bazaar product (`BAZAAR_SKU`, default `full_version`).
+
+| | Free | Pro |
+|---|---|---|
+| Download with Wi-Fi **and** mobile data at the same time | — (one network at a time: Wi-Fi first, mobile data when Wi-Fi is off/lost, automatic switch) | ✅ |
+| Queue, resume, history, notifications, status-bar speed, themes, Persian/English | ✅ | ✅ |
+| Parallel downloads / connections per network | up to 2 / 4 | up to 5 / 8 |
+| Speed limiter | — | ✅ |
+| Monthly mobile-data cap + warning | — | ✅ |
+| Scheduled start | — | ✅ |
+| Custom User-Agent / Referer / cookies / login per link | — | ✅ |
+| Usage statistics per network | — | ✅ |
+| Download history (search, filter) | — | ✅ |
+
+How it is enforced: `ProState` (singleton) holds the entitlement, `LicenseManager` asks Bazaar and grants/revokes it, `Entitlements` clamps the settings and request options **inside the download engine** (`DownloadManager`, `DownloadJob`), not only in the UI. Pro stays active offline for 7 days after the last successful Bazaar check. Debug builds are always Pro. To move a feature between tiers edit `core/license/Entitlements.kt` (and the lock in the matching screen).
+
+Size: unused navigation libraries removed, only `en`/`fa` library resources kept, extra R8 options (`-repackageclasses`, `-allowaccessmodification`) and fewer packaged metadata files.

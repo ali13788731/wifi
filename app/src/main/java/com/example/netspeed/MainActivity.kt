@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -72,10 +73,16 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import androidx.lifecycle.lifecycleScope
 import com.example.netspeed.core.common.LinkDetector
+import com.example.netspeed.core.license.LicenseManager
+import com.example.netspeed.core.notify.Notify
+import com.example.netspeed.core.notify.UpdateChecker
 import kotlinx.coroutines.launch
 import com.example.netspeed.core.ui.AppViewModel
 import com.example.netspeed.core.ui.Brand
 import com.example.netspeed.core.ui.DualNetTheme
+import com.example.netspeed.core.ui.LocalLicense
+import com.example.netspeed.core.ui.ProDialog
+import com.example.netspeed.core.ui.ProLockedScreen
 import com.example.netspeed.core.ui.Splash
 import com.example.netspeed.feature.diagnostics.DiagnosticsScreen
 import com.example.netspeed.feature.downloads.AddDownloadSheet
@@ -95,6 +102,7 @@ private data class Incoming(val url: String, val auto: Boolean)
 class MainActivity : ComponentActivity() {
 
     private val vm: AppViewModel by viewModels()
+    private val license by lazy { LicenseManager(this, vm.pro) }
     private var incoming by mutableStateOf<Incoming?>(null)
 
     override fun attachBaseContext(base: Context) = super.attachBaseContext(wrapLocale(base))
@@ -106,6 +114,8 @@ class MainActivity : ComponentActivity() {
         // Minimising and coming back never calls onCreate, and a recreate (language change) has a
         // saved state, so the splash is NOT shown for those.
         splashShowing = savedInstanceState == null
+        license.check()
+        UpdateChecker.checkNow(this)
         handleIntent(intent)
         setContent {
             val settings by vm.settings.collectAsState()
@@ -116,19 +126,21 @@ class MainActivity : ComponentActivity() {
                 "en" -> LayoutDirection.Ltr
                 else -> systemDir
             }
-            CompositionLocalProvider(LocalLayoutDirection provides dir) {
+            CompositionLocalProvider(LocalLayoutDirection provides dir, LocalLicense provides license) {
                 DualNetTheme(settings.theme) {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         var splash by rememberSaveable { mutableStateOf(splashShowing) }
                         if (splash) Splash {
                             splashShowing = false; splash = false
                             checkClipboard()          // focus event came while the splash was on: look now
-                        } else AppRoot()
+                        } else AppRoot()      // the app is free: never blocked by a purchase screen
                     }
                 }
             }
         }
     }
+
+    override fun onDestroy() { license.release(); super.onDestroy() }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -186,6 +198,8 @@ class MainActivity : ComponentActivity() {
         var showAdd by rememberSaveable { mutableStateOf(false) }
         var showDiag by rememberSaveable { mutableStateOf(false) }
         var prefill by remember { mutableStateOf<Incoming?>(null) }
+        val isPro by vm.isPro.collectAsState()
+        var proDialog by remember { mutableStateOf<Int?>(null) }
 
         val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { startSpeedService() }
         LaunchedEffect(Unit) {
@@ -196,12 +210,18 @@ class MainActivity : ComponentActivity() {
             incoming?.let { prefill = it; showAdd = true; incoming = null }
         }
         BackHandler(showDiag) { showDiag = false }
+        // another screen asked to open a settings page (e.g. "download with one network")
+        LaunchedEffect(vm.settingsRequest) {
+            if (vm.settingsRequest != null) { tab = 4; showDiag = false; showAdd = false }
+        }
+        // room for the floating bar INCLUDING the system navigation bar, so the last row is never hidden under it
+        val navInset = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         val open: (String) -> Unit = { p -> runCatching { startActivity(vm.storage.openIntent(p)) } }
         val share: (String) -> Unit = { p -> runCatching { startActivity(vm.storage.shareIntent(p)) } }
 
         Box(Modifier.fillMaxSize().statusBarsPadding()) {
-            Box(Modifier.fillMaxSize().padding(bottom = 92.dp)) {
+            Box(Modifier.fillMaxSize().padding(bottom = 96.dp + navInset)) {
                 AnimatedContent(
                     targetState = if (showDiag) -1 else tab,
                     transitionSpec = {
@@ -218,8 +238,8 @@ class MainActivity : ComponentActivity() {
                         }
                         0 -> HomeScreen(vm, { prefill = null; showAdd = true }, open, share, { showDiag = true })
                         1 -> DownloadsScreen(vm, open, share)
-                        2 -> HistoryScreen(vm, open, share)
-                        3 -> StatsScreen(vm)
+                        2 -> if (isPro) HistoryScreen(vm, open, share) else ProLockedScreen(R.string.pro_history_locked) { proDialog = R.string.pro_feat_history }
+                        3 -> if (isPro) StatsScreen(vm) else ProLockedScreen(R.string.pro_stats_locked) { proDialog = R.string.pro_feat_stats }
                         else -> SettingsScreen(vm) { lang ->
                             getSharedPreferences("ui", MODE_PRIVATE).edit().putString("lang", lang).apply()
                             recreate()
@@ -238,6 +258,7 @@ class MainActivity : ComponentActivity() {
             )
         }
         if (showAdd) AddDownloadSheet(vm, prefill?.url, prefill?.auto == true) { showAdd = false }
+        if (proDialog != null && !isPro) ProDialog(proDialog) { proDialog = null }
     }
 
     companion object {

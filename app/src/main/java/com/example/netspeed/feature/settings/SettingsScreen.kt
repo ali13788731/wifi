@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -36,6 +37,11 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SignalCellularAlt
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Button
+import com.example.netspeed.core.license.LicenseManager
+import com.example.netspeed.core.ui.LocalLicense
+import com.example.netspeed.core.ui.LocalNetColors
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,10 +76,17 @@ import com.example.netspeed.R
 import com.example.netspeed.core.common.Format
 import com.example.netspeed.core.ui.AppViewModel
 import com.example.netspeed.core.ui.Brand
+import com.example.netspeed.core.license.Entitlements
 import com.example.netspeed.core.ui.IconTile
+import com.example.netspeed.core.ui.LockedRow
+import com.example.netspeed.core.ui.ProBadge
+import com.example.netspeed.core.ui.ProCard
+import com.example.netspeed.core.ui.ProDialog
 import com.example.netspeed.core.ui.SoftCard
 
 private class Entry(val key: String, val icon: ImageVector, val title: Int, val sub: Int, val tint: Color)
+
+private val proEntry = Entry("pro", Icons.Rounded.Star, R.string.s_pro, R.string.sub_pro, Color(0xFF7C4DFF))
 
 private val entries = listOf(
     Entry("downloads", Icons.Rounded.CloudDownload, R.string.s_downloads, R.string.sub_downloads, Color(0xFF3B6DFF)),
@@ -89,7 +102,12 @@ private val entries = listOf(
 @Composable
 fun SettingsScreen(vm: AppViewModel, onLanguageChanged: (String) -> Unit) {
     var page by rememberSaveable { mutableStateOf("") }
+    val isPro by vm.isPro.collectAsState()
+    var proReason by remember { mutableStateOf<Int?>(null) }
+    if (proReason != null && !isPro) ProDialog(proReason) { proReason = null }
     BackHandler(page.isNotEmpty()) { page = "" }
+    // another screen (e.g. the "network is off" dialog) asked to open a settings page
+    LaunchedEffect(vm.settingsRequest) { vm.settingsRequest?.let { page = it; vm.settingsRequest = null } }
 
     AnimatedContent(
         targetState = page,
@@ -101,13 +119,13 @@ fun SettingsScreen(vm: AppViewModel, onLanguageChanged: (String) -> Unit) {
         },
         label = "settings"
     ) { p ->
-        if (p.isEmpty()) Menu(onOpen = { page = it })
-        else Detail(vm, p, onBack = { page = "" }, onLanguageChanged = onLanguageChanged)
+        if (p.isEmpty()) Menu(isPro, onUpgrade = { page = "pro" }, onOpen = { page = it })
+        else Detail(vm, p, isPro, onLocked = { proReason = it }, onBack = { page = "" }, onLanguageChanged = onLanguageChanged)
     }
 }
 
 @Composable
-private fun Menu(onOpen: (String) -> Unit) {
+private fun Menu(isPro: Boolean, onUpgrade: () -> Unit, onOpen: (String) -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -121,6 +139,7 @@ private fun Menu(onOpen: (String) -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(stringResource(R.string.splash_tagline), color = Color.White.copy(alpha = .9f), fontSize = 13.sp)
         }
+        ProCard(isPro, onUpgrade)
         entries.forEach { e ->
             SoftCard {
                 Row(
@@ -143,10 +162,10 @@ private fun Menu(onOpen: (String) -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Detail(vm: AppViewModel, key: String, onBack: () -> Unit, onLanguageChanged: (String) -> Unit) {
+private fun Detail(vm: AppViewModel, key: String, isPro: Boolean, onLocked: (Int) -> Unit, onBack: () -> Unit, onLanguageChanged: (String) -> Unit) {
     val s by vm.settings.collectAsState()
     val ctx = LocalContext.current
-    val entry = entries.first { it.key == key }
+    val entry = if (key == "pro") proEntry else entries.first { it.key == key }
     val mobileUsed = remember { mutableStateOf(vm.manager.mobileUsedThisMonth()) }
     LaunchedEffect(Unit) {
         vm.manager.refreshMobileUsed()
@@ -176,20 +195,41 @@ private fun Detail(vm: AppViewModel, key: String, onBack: () -> Unit, onLanguage
             SoftCard {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     when (key) {
+                        "pro" -> ProPage(vm, isPro)
                         "downloads" -> {
-                            Text(stringResource(R.string.s_max_concurrent) + ": " + com.example.netspeed.core.common.Format.n(s.maxConcurrent), fontSize = 14.sp)
-                            Slider(s.maxConcurrent.toFloat(), { v -> vm.set { setMaxConcurrent(v.toInt()) } }, valueRange = 1f..5f, steps = 3)
-                            Text(stringResource(R.string.s_connections) + ": " + com.example.netspeed.core.common.Format.n(s.connectionsPerNetwork), fontSize = 14.sp)
+                            if (isPro) {
+                                SwitchRow(R.string.s_single, s.allowSingleNetwork) { vm.set { setAllowSingle(it) } }
+                                Text(stringResource(R.string.s_single_hint), fontSize = 12.sp, color = muted)
+                            } else {
+                                LockedRow(stringResource(R.string.pro_feat_dual), stringResource(R.string.pro_net_free_hint)) { onLocked(R.string.pro_why_dual) }
+                            }
+                            val maxC = Entitlements.maxConcurrent(isPro)
+                            val maxN = Entitlements.maxConnections(isPro)
+                            val shownC = s.maxConcurrent.coerceIn(1, maxC)
+                            val shownN = s.connectionsPerNetwork.coerceIn(1, maxN)
+                            Text(stringResource(R.string.s_max_concurrent) + ": " + Format.n(shownC), fontSize = 14.sp)
+                            Slider(shownC.toFloat(), { v -> vm.set { setMaxConcurrent(v.toInt()) } }, valueRange = 1f..maxC.toFloat(), steps = maxC - 2)
+                            Text(stringResource(R.string.s_connections) + ": " + Format.n(shownN), fontSize = 14.sp)
                             Text(stringResource(R.string.s_connections_hint), fontSize = 12.sp, color = muted)
-                            Slider(s.connectionsPerNetwork.toFloat(), { v -> vm.set { setConnections(v.toInt()) } }, valueRange = 1f..8f, steps = 6)
-                            NumberField(R.string.s_speed_limit, s.speedLimitBps / (1024 * 1024)) { vm.set { setSpeedLimit(it * 1024 * 1024) } }
+                            Slider(shownN.toFloat(), { v -> vm.set { setConnections(v.toInt()) } }, valueRange = 1f..maxN.toFloat(), steps = maxN - 2)
+                            if (!isPro) {
+                                LockedRow(
+                                    stringResource(R.string.pro_feat_more),
+                                    stringResource(R.string.pro_free_up_to,
+                                        Format.n(Entitlements.FREE_MAX_CONCURRENT) + " / " + Format.n(Entitlements.FREE_MAX_CONNECTIONS),
+                                        Format.n(Entitlements.PRO_MAX_CONCURRENT) + " / " + Format.n(Entitlements.PRO_MAX_CONNECTIONS))
+                                ) { onLocked(R.string.pro_why_more) }
+                            }
+                            if (isPro) NumberField(R.string.s_speed_limit, s.speedLimitBps / (1024 * 1024)) { vm.set { setSpeedLimit(it * 1024 * 1024) } }
+                            else LockedRow(stringResource(R.string.pro_feat_limiter)) { onLocked(R.string.pro_why_limiter) }
                             SwitchRow(R.string.s_auto_retry, s.autoRetry) { vm.set { setAutoRetry(it) } }
                         }
                         "mobile" -> {
                             Text(stringResource(R.string.s_mobile_hint), fontSize = 12.sp, color = muted)
-                            NumberField(R.string.s_mobile_limit, s.mobileLimitBytes / (1024 * 1024)) { vm.set { setMobileLimit(it * 1024 * 1024) } }
+                            if (isPro) NumberField(R.string.s_mobile_limit, s.mobileLimitBytes / (1024 * 1024)) { vm.set { setMobileLimit(it * 1024 * 1024) } }
+                            else LockedRow(stringResource(R.string.pro_feat_cap)) { onLocked(R.string.pro_why_cap) }
                             Text(stringResource(R.string.s_mobile_used) + ": " + Format.bytes(mobileUsed.value), fontSize = 13.sp)
-                            if (s.mobileLimitBytes > 0) LinearProgressIndicator(
+                            if (isPro && s.mobileLimitBytes > 0) LinearProgressIndicator(
                                 progress = { (mobileUsed.value.toFloat() / s.mobileLimitBytes).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(MaterialTheme.shapes.small)
                             )
@@ -255,5 +295,102 @@ private fun NumberField(label: Int, value: Long, onChange: (Long) -> Unit) {
         Modifier.fillMaxWidth(), label = { Text(stringResource(label)) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         shape = MaterialTheme.shapes.medium
+    )
+}
+
+/** One row of the comparison table: [free] / [pro] are "yes", "no" or a short text such as a number. */
+private class Row3(val label: Int, val free: String, val pro: String)
+
+private const val YES = "✓"
+private const val NO = "—"
+
+@Composable
+private fun ProPage(vm: AppViewModel, isPro: Boolean) {
+    val license = LocalLicense.current
+    val c = LocalNetColors.current
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val verified = vm.pro.verifiedAt()
+    val rows = listOf(
+        Row3(R.string.tr_dual, NO, YES),
+        Row3(R.string.tr_single, YES, YES),
+        Row3(R.string.tr_basics, YES, YES),
+        Row3(R.string.tr_parallel, Format.n(Entitlements.FREE_MAX_CONCURRENT), Format.n(Entitlements.PRO_MAX_CONCURRENT)),
+        Row3(R.string.tr_conns, Format.n(Entitlements.FREE_MAX_CONNECTIONS), Format.n(Entitlements.PRO_MAX_CONNECTIONS)),
+        Row3(R.string.pro_feat_limiter, NO, YES),
+        Row3(R.string.pro_feat_cap, NO, YES),
+        Row3(R.string.pro_feat_schedule, NO, YES),
+        Row3(R.string.pro_feat_advanced, NO, YES),
+        Row3(R.string.pro_feat_history, NO, YES),
+        Row3(R.string.pro_feat_stats, NO, YES)
+    )
+
+    // ---- status
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (isPro) YES else "•", fontSize = 26.sp, color = if (isPro) c.ok else c.warn, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(if (isPro) R.string.pro_status_on else R.string.pro_status_free), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    stringResource(
+                        when {
+                            !BuildConfig.LICENSE_REQUIRED -> R.string.pro_status_debug
+                            isPro -> R.string.pro_status_on_sub
+                            else -> R.string.pro_status_free_sub
+                        }
+                    ), fontSize = 12.sp, color = muted
+                )
+            }
+        }
+        if (isPro && BuildConfig.LICENSE_REQUIRED && verified > 0)
+            Text(
+                stringResource(R.string.pro_verified, Format.d(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(verified)))),
+                fontSize = 12.sp, color = muted
+            )
+        when (license?.problem) {
+            LicenseManager.State.NO_BAZAAR -> Text(stringResource(R.string.lic_no_bazaar), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            LicenseManager.State.ERROR -> Text(stringResource(R.string.lic_failed), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            LicenseManager.State.UNLICENSED -> Text(stringResource(R.string.lic_not_found), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            else -> {}
+        }
+        if (!isPro) Button({ license?.buy() }, Modifier.fillMaxWidth().height(50.dp)) {
+            Text(stringResource(R.string.lic_buy), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+        if (BuildConfig.LICENSE_REQUIRED) OutlinedButton({ license?.check(byUser = true) }, Modifier.fillMaxWidth()) {
+            Text(stringResource(if (isPro) R.string.pro_refresh else R.string.lic_recheck))
+        }
+    }
+
+    // ---- table
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(if (isPro) R.string.pro_table_title_on else R.string.pro_table_title), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1f))
+        Text(stringResource(R.string.col_free), Modifier.width(56.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = muted,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Box(Modifier.width(56.dp), Alignment.Center) { ProBadge() }
+    }
+    rows.forEach { r ->
+        val unlocks = r.free != r.pro            // this row changes with Pro
+        Row(
+            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+                .background(if (unlocks) MaterialTheme.colorScheme.primary.copy(alpha = .07f) else Color.Transparent)
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(r.label), Modifier.weight(1f), fontSize = 13.sp)
+            Cell(r.free, c.ok, muted)
+            Cell(r.pro, c.ok, muted, bold = true)
+        }
+    }
+    Text(stringResource(R.string.pro_table_note), fontSize = 11.sp, color = muted)
+}
+
+@Composable
+private fun Cell(v: String, ok: Color, muted: Color, bold: Boolean = false) {
+    Text(
+        v, Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 15.sp,
+        color = if (v == YES) ok else if (v == NO) muted else MaterialTheme.colorScheme.onSurface,
+        fontWeight = if (bold || v == YES) FontWeight.Bold else FontWeight.Normal
     )
 }

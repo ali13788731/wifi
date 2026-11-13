@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="err_duplicate">This download is a duplicate: the same link is already in your downloads or history.</string>
+    <string name="blocked_settings">Single-network setting</string>
+    <string name="s_single">Allow downloading with only one network</string>
+    <string name="s_single_hint">Pro only. By default a Pro download starts only when both Wi-Fi and mobile data are on. Turn this on to download with whichever one is on (the other is simply not used).</string>
+    <string name="single_mode_active">Only one network is on — downloading with it (single-network mode)</string>
+    <string name="single_hint_btn">Download with one network…</string>
+    <string name="tb_cut">Cut</string>
+    <string name="tb_copy">Copy</string>
+    <string name="tb_paste">Paste</string>
+    <string name="tb_select_all">Select all</string>
+    <string name="lic_title">Upgrade to Pro</string>
+    <string name="lic_body">Pro is a one-time purchase through your Cafe Bazaar account.</string>
+    <string name="lic_buy">Buy Pro</string>
+    <string name="lic_recheck">I already bought it — check again</string>
+    <string name="lic_checking">Checking your purchase…</string>
+    <string name="lic_no_bazaar">Cafe Bazaar is not installed or not signed in. Install it, sign in, and try again.</string>
+    <string name="lic_failed">The purchase could not be checked. Check your internet connection and try again.</string>
+    <string name="lic_install_bazaar">Get Cafe Bazaar</string>
+</resources>
