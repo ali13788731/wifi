@@ -228,34 +228,33 @@ class DownloadService : Service() {
     }
 
     /**
-     * Status-bar icon: Wi-Fi speed on the LEFT, mobile speed on the RIGHT, a thin vertical divider
-     * between them. Wide (not square) so each number can be drawn big; both numbers carry their
-     * unit letter (K / M / G / T, or ک / م / گ / ت in Persian).
+     * Status-bar icon: square, two rows centred. Wi-Fi speed on top, mobile speed below,
+     * with a thin horizontal divider between them. Square so the system doesn't squash it.
      */
     private fun speedIcon(wifi: Long, mobile: Long): Bitmap {
-        val h = 96; val w = 192
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val s = 96
+        val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE; textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val half = w / 2f
-        // Draws [text] centred in one half: as tall as possible, condensed horizontally to fit.
-        fun cell(text: String, cx: Float) {
-            p.textSize = 72f
+        val rowH = s / 2f
+        val maxW = s - 4f
+        // Draws [text] centred horizontally in one row, condensed horizontally if too wide.
+        fun row(text: String, top: Float) {
+            p.textSize = 50f
             p.textScaleX = 1f
             val tw = p.measureText(text)
-            val maxW = half - 10f
             if (tw > maxW) p.textScaleX = maxW / tw
             val fm = p.fontMetrics
-            val base = h / 2f - (fm.ascent + fm.descent) / 2f
-            c.drawText(text, cx, base, p)
+            val base = top + rowH / 2f - (fm.ascent + fm.descent) / 2f
+            c.drawText(text, s / 2f, base, p)
         }
-        cell(Format.iconSpeed(wifi), half / 2f)
-        cell(Format.iconSpeed(mobile), half + half / 2f)
-        val bar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        c.drawRoundRect(RectF(half - 2.5f, 8f, half + 2.5f, h - 8f), 2.5f, 2.5f, bar)
+        row(Format.iconSpeed(wifi), 0f)
+        row(Format.iconSpeed(mobile), rowH)
+        val bar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; alpha = 160 }
+        c.drawRoundRect(RectF(14f, rowH - 1.5f, s - 14f, rowH + 1.5f), 1.5f, 1.5f, bar)
         return bmp
     }
 
